@@ -3478,11 +3478,94 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
 
 .modal-company {
   width: min(960px, calc(100vw - 48px));
-  min-height: min(680px, calc(100vh - 48px));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal-company .company-modal-sections {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .modal-company .modal-actions {
-  margin-top: auto;
+  flex: none;
+  margin-top: 0;
+  padding-top: 16px;
+  border-top: 1px solid #e6e6e7;
+  background: #fff;
+}
+
+.company-modal-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+}
+
+.company-modal-section h3,
+.company-modal-contact h4 {
+  margin: 0;
+  color: #262527;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.company-modal-section + .company-modal-section {
+  padding-top: 20px;
+  border-top: 1px solid #e6e6e7;
+}
+
+.company-modal-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.company-modal-contact {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f1;
+}
+
+.company-modal-fields .contact-owner-affiliation-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+}
+
+.company-modal-fields .contact-owner-affiliation-field .kv-label {
+  padding: 0;
+  color: #6a6a70;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.company-modal-fields .contact-owner-affiliation-field .kv-value,
+.company-modal-fields .contact-owner-affiliation-field .inline-field-editor {
+  width: 100%;
+  min-width: 0;
+}
+
+.company-modal-fields .contact-owner-affiliation-field .inline-field-value,
+.company-modal-fields .contact-owner-affiliation-field .inline-select {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e6e6e7;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .company-modal-fields.kv-edit,

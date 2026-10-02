@@ -744,16 +744,19 @@ function TextField({
   value,
   placeholder,
   onChange,
+  type = "text",
 }: {
   label: string;
   value: string;
   placeholder?: string;
   onChange: (value: string) => void;
+  type?: "text" | "date";
 }) {
   return (
     <label className="edit-field">
       {label}
       <input
+        type={type}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -1129,10 +1132,6 @@ export function LeadDetail({
 
   const fieldErrors = fieldErrorsFor(lead);
   const activeError = fieldErrors.find((error) => error.id === activeErrorId) ?? null;
-  function displayStatus(company: { id: string; status: Status }) {
-    return fieldErrors.some((error) => error.companyId === company.id) ? "Attention Required" : company.status;
-  }
-  const companyStatusLabel = selected ? displayStatus(selected) : selected?.status;
 
   function focusErrorAnchor(anchor: string) {
     if (anchor === "property-address") {
@@ -1249,15 +1248,9 @@ export function LeadDetail({
     );
   }
 
-  function addEmptyCompany() {
-    const created: Company = {
-      ...emptyCompany(),
-      id: `c-${Date.now()}`,
-    };
-    onChange(stamp({ ...lead, companies: [...lead.companies, created] }));
-    setSelectedId(created.id);
-    setCompanyTab("information");
-    setCompanyQuery("");
+  function openAddCompanyModal() {
+    setNewCompany(emptyCompany());
+    setAddCompanyOpen(true);
   }
 
   function addCompany() {
@@ -1267,12 +1260,34 @@ export function LeadDetail({
       name: newCompany.name.trim() || "Untitled company",
       floorRange: newCompany.floor.trim(),
       suiteRange: newCompany.suite.trim(),
-      contacts: [],
     };
     onChange(stamp({ ...lead, companies: [...lead.companies, created] }));
     setSelectedId(created.id);
+    setCompanyTab("information");
+    setCompanyQuery("");
     setAddCompanyOpen(false);
     setNewCompany(emptyCompany());
+  }
+
+  function updateNewContact(id: string, patch: Partial<Contact>) {
+    setNewCompany((current) => ({
+      ...current,
+      contacts: current.contacts.map((contact) => (contact.id === id ? { ...contact, ...patch } : contact)),
+    }));
+  }
+
+  function addNewContact() {
+    setNewCompany((current) => ({
+      ...current,
+      contacts: [...current.contacts, { ...emptyContact(), id: `ct-${Date.now()}` }],
+    }));
+  }
+
+  function removeNewContact(id: string) {
+    setNewCompany((current) => ({
+      ...current,
+      contacts: current.contacts.filter((contact) => contact.id !== id),
+    }));
   }
 
   function renderCompanyFormField(
@@ -1287,6 +1302,17 @@ export function LeadDetail({
           label={field.label}
           value={value}
           placeholder={field.placeholder}
+          onChange={onChange}
+        />
+      );
+    }
+    if (field.kind === "date") {
+      return (
+        <TextField
+          key={field.key}
+          label={field.label}
+          value={value}
+          type="date"
           onChange={onChange}
         />
       );
@@ -1640,7 +1666,7 @@ export function LeadDetail({
                   {lead.companies.length > 0 && (
                     <CompanySearch value={companyQuery} onChange={setCompanyQuery} />
                   )}
-                  <button type="button" className="btn btn-sm btn-ghost-primary" onClick={addEmptyCompany}>
+                  <button type="button" className="btn btn-sm btn-ghost-primary" onClick={openAddCompanyModal}>
                     + Add
                   </button>
                 </div>
@@ -1655,7 +1681,6 @@ export function LeadDetail({
               <ul className="company-list">
                 {visibleCompanies.map((company) => {
                   const { floorText } = occupancyParts(company);
-                  const statusLabel = displayStatus(company);
                   return (
                     <li key={company.id}>
                       <button
@@ -1669,11 +1694,8 @@ export function LeadDetail({
                         <span className="company-list-item-meta">
                           {floorText ? <span>{floorText}</span> : <span>Floor info unavailable</span>}
                           <span className="banner-dot" aria-hidden="true" />
-                          <span className={`company-list-item-status ${companyStatusClass(statusLabel)}`}>
-                            {statusLabel}
-                            {statusLabel === "Attention Required" && (
-                              <img src="/assets/icon-error.svg" alt="" />
-                            )}
+                          <span className={`company-list-item-status ${companyStatusClass(company.status)}`}>
+                            {company.status}
                           </span>
                         </span>
                       </button>
@@ -1689,7 +1711,7 @@ export function LeadDetail({
               <div className="company-detail-empty">
                 <h2>No company selected</h2>
                 <p className="panel-empty">Add a company to view details, occupancy, and contacts for this property.</p>
-                <button type="button" className="btn btn-primary" onClick={addEmptyCompany}>
+                <button type="button" className="btn btn-primary" onClick={openAddCompanyModal}>
                   + Add Company
                 </button>
               </div>
@@ -1703,9 +1725,9 @@ export function LeadDetail({
                     <p className="company-detail-meta">
                       {floorText ? <span>{floorText}</span> : <span>Floor info unavailable</span>}
                       <span className="banner-dot" aria-hidden="true" />
-                      <span className={`company-detail-status ${companyStatusClass(companyStatusLabel ?? selected.status)}`}>
-                        {companyStatusLabel}
-                        {companyStatusLabel === "Attention Required" && (
+                      <span className={`company-detail-status ${companyStatusClass(selected.status)}`}>
+                        {selected.status}
+                        {selected.status === "Attention Required" && (
                           <img src="/assets/icon-error.svg" alt="" />
                         )}
                       </span>
@@ -2074,21 +2096,125 @@ export function LeadDetail({
                 ×
               </button>
             </div>
-            <div className="company-modal-fields kv-edit">
-              {companyFields.map((field) =>
-                renderCompanyFormField(
-                  field,
-                  String(newCompany[field.key] ?? ""),
-                  (value) => setNewCompany((current) => ({ ...current, [field.key]: value })),
-                ),
-              )}
-              {occupancyFields.map((field) =>
-                renderCompanyFormField(
-                  field,
-                  String(newCompany[field.key] ?? ""),
-                  (value) => setNewCompany((current) => ({ ...current, [field.key]: value })),
-                ),
-              )}
+            <div className="company-modal-sections">
+              <section className="company-modal-section">
+                <h3>Company Information</h3>
+                <div className="company-modal-fields kv-edit">
+                  {companyFields.map((field) =>
+                    renderCompanyFormField(
+                      field,
+                      String(newCompany[field.key] ?? ""),
+                      (value) => setNewCompany((current) => ({ ...current, [field.key]: value })),
+                    ),
+                  )}
+                  <TextField
+                    label="Parent Company"
+                    value={newCompany.parentCompany ?? ""}
+                    placeholder="Enter Parent Company"
+                    onChange={(value) => setNewCompany((current) => ({ ...current, parentCompany: value }))}
+                  />
+                </div>
+              </section>
+
+              <section className="company-modal-section">
+                <h3>Property Occupancy</h3>
+                <div className="company-modal-fields kv-edit">
+                  {occupancyFields.map((field) =>
+                    renderCompanyFormField(
+                      field,
+                      String(newCompany[field.key] ?? ""),
+                      (value) => setNewCompany((current) => ({ ...current, [field.key]: value })),
+                    ),
+                  )}
+                  {occupancyDateFields.map((field) =>
+                    renderCompanyFormField(
+                      { ...field, placeholder: "MM/DD/YYYY", kind: "date" },
+                      newCompany[field.key],
+                      (value) => setNewCompany((current) => ({ ...current, [field.key]: value })),
+                    ),
+                  )}
+                  <ContactOwnerAffiliationChips
+                    label="Property Affiliation"
+                    options={propertyAffiliationOptions}
+                    emptyLabel="Select Property Affiliation"
+                    value={newCompany.propertyAffiliation}
+                    onChange={(value) => setNewCompany((current) => ({ ...current, propertyAffiliation: value }))}
+                  />
+                </div>
+              </section>
+
+              <section className="company-modal-section">
+                <div className="company-modal-section-head">
+                  <h3>Contacts ({newCompany.contacts.length})</h3>
+                  <button type="button" className="btn btn-sm btn-ghost-primary" onClick={addNewContact}>
+                    + Add Contact
+                  </button>
+                </div>
+                {newCompany.contacts.length === 0 && (
+                  <p className="panel-empty">No contacts for this company yet.</p>
+                )}
+                {newCompany.contacts.map((contact, index) => (
+                  <div className="company-modal-contact" key={contact.id}>
+                    <div className="company-modal-section-head">
+                      <h4>Contact {index + 1}</h4>
+                      <button type="button" className="btn btn-sm" onClick={() => removeNewContact(contact.id)}>
+                        Remove
+                      </button>
+                    </div>
+                    <div className="company-modal-fields kv-edit">
+                      {contactFields.map((field) => {
+                        const onChange = (value: string) => updateNewContact(contact.id, { [field.key]: value });
+                        if (field.key === "ownerAffiliation") {
+                          return (
+                            <ContactOwnerAffiliationChips
+                              key={field.key}
+                              label={field.label}
+                              options={field.options}
+                              emptyLabel={field.placeholder}
+                              value={contact.ownerAffiliation}
+                              onChange={onChange}
+                            />
+                          );
+                        }
+                        if (field.kind === "phone") {
+                          return (
+                            <PhoneField
+                              key={field.key}
+                              label={field.label}
+                              value={contact[field.key]}
+                              placeholder={field.placeholder}
+                              onChange={onChange}
+                            />
+                          );
+                        }
+                        if (field.options) {
+                          const isCountry = field.key === "country";
+                          const current = isCountry ? countryLabel(contact.country) : contact[field.key];
+                          return (
+                            <SelectField
+                              key={field.key}
+                              label={field.label}
+                              value={current}
+                              placeholder={field.placeholder}
+                              options={withCurrentOption(current, field.options)}
+                              onChange={(value) => onChange(isCountry ? countryCode(value) : value)}
+                            />
+                          );
+                        }
+                        return (
+                          <TextField
+                            key={field.key}
+                            label={field.label}
+                            value={contact[field.key]}
+                            placeholder={field.placeholder}
+                            onChange={onChange}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </section>
             </div>
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setAddCompanyOpen(false)}>

@@ -28,8 +28,11 @@ function statusClass(status: Status) {
 }
 
 function readLeadRoute(): { id: string | null; full: boolean } {
-  const match = window.location.hash.match(/^#\/leads\/([^/]+)(\/full)?$/);
-  return match ? { id: decodeURIComponent(match[1]), full: true } : { id: null, full: false };
+  const hashMatch = window.location.hash.match(/^#\/leads\/([^/]+)(\/full)?$/);
+  if (hashMatch) return { id: decodeURIComponent(hashMatch[1]), full: true };
+  const pathMatch = window.location.pathname.match(/^\/leads\/([^/]+)(\/full)?$/);
+  if (pathMatch) return { id: decodeURIComponent(pathMatch[1]), full: true };
+  return { id: null, full: false };
 }
 
 function leadValue(lead: Lead, key: ColumnKey) {
@@ -198,8 +201,10 @@ export default function App() {
   }
 
   function navigateLead(id: string | null) {
-    const hash = id ? `#/leads/${encodeURIComponent(id)}/full` : "#/leads";
-    if (window.location.hash !== hash) window.history.pushState({ leadId: id }, "", hash);
+    const path = id ? `/leads/${encodeURIComponent(id)}/full` : "/leads";
+    if (window.location.pathname !== path || window.location.hash) {
+      window.history.pushState({ leadId: id }, "", path);
+    }
     setRoute({ id, full: Boolean(id) });
   }
 
