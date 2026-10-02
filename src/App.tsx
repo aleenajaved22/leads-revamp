@@ -1,0 +1,874 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  columns,
+  filterGroups,
+  initialLeads,
+  officers,
+  pageSizeOptions,
+  parseDate,
+  type Assignee,
+  type ColumnKey,
+  type Lead,
+  type Status,
+} from "./data";
+import { LeadDetail } from "./LeadDetail";
+
+type SortKey = ColumnKey;
+type SortDir = "asc" | "desc";
+type Menu = "export" | "country" | "profile" | "notifications" | "sort" | "customize" | "pageSize" | null;
+
+const statuses: Status[] = ["Enriched", "Raw", "Attention Required", "Cleaned", "Approved"];
+
+function Icon({ src, alt = "" }: { src: string; alt?: string }) {
+  return <img src={src} alt={alt} />;
+}
+
+function statusClass(status: Status) {
+  return `badge badge-${status.toLowerCase().replace(/\s+/g, "-")}`;
+}
+
+function readLeadRoute(): { id: string | null; full: boolean } {
+  const match = window.location.hash.match(/^#\/leads\/([^/]+)(\/full)?$/);
+  return match ? { id: decodeURIComponent(match[1]), full: true } : { id: null, full: false };
+}
+
+function leadValue(lead: Lead, key: ColumnKey) {
+  if (key === "assignee") return lead.assignee?.name ?? "Assign";
+  return lead[key];
+}
+
+export default function App() {
+  const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filterTab, setFilterTab] = useState<"all" | "saved">("all");
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [menu, setMenu] = useState<Menu>(null);
+  const [assignFor, setAssignFor] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [route, setRoute] = useState(readLeadRoute);
+  const openLeadId = route.id;
+  const [draft, setDraft] = useState({ name: "", address: "", state: "", status: "Raw" as Status });
+  const fileRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function syncLeadFromHash() {
+      setRoute(readLeadRoute());
+    }
+    window.addEventListener("hashchange", syncLeadFromHash);
+    window.addEventListener("popstate", syncLeadFromHash);
+    return () => {
+      window.removeEventListener("hashchange", syncLeadFromHash);
+      window.removeEventListener("popstate", syncLeadFromHash);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-menu]") || target.closest("[data-menu-trigger]")) return;
+      setMenu(null);
+      if (!target.closest("[data-assign]")) setAssignFor(null);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenu(null);
+        setAssignFor(null);
+        setCreateOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let rows = leads.filter((lead) => {
+      if (q) {
+        const haystack = [lead.name, lead.address, lead.city, lead.state, lead.zipcode, lead.source]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (savedId === "unassigned" && lead.assignee) return false;
+      if (savedId === "attention" && lead.status !== "Attention Required") return false;
+      for (const group of filterGroups) {
+        const picked = activeFilters[group.id];
+        if (!picked?.length || !group.field) continue;
+        if (!picked.includes(String(leadValue(lead, group.field)))) return false;
+      }
+      return true;
+    });
+    if (sort) {
+      rows = [...rows].sort((a, b) => {
+        const left = leadValue(a, sort.key);
+        const right = leadValue(b, sort.key);
+        const dateKeys: SortKey[] = ["added", "modified"];
+        const result = dateKeys.includes(sort.key)
+          ? parseDate(left) - parseDate(right)
+          : left.localeCompare(right, undefined, { numeric: true });
+        return sort.dir === "asc" ? result : -result;
+      });
+    }
+    return rows;
+  }, [leads, query, activeFilters, savedId, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const defaultView =
+    safePage === 1 &&
+    pageSize === 15 &&
+    !query &&
+    !savedId &&
+    !sort &&
+    Object.values(activeFilters).every((values) => !values?.length);
+  const rangeLabel = defaultView
+    ? "1-15 of 12,345"
+    : filtered.length === 0
+      ? "0 of 0"
+      : `${(safePage - 1) * pageSize + 1}-${Math.min(safePage * pageSize, filtered.length)} of ${filtered.length}`;
+
+  const visibleColumns = columns.filter((column) => !hiddenColumns.has(column.key));
+  const allChecked = pageRows.length > 0 && pageRows.every((lead) => selected.has(lead.id));
+
+  function toggleMenu(next: Menu) {
+    setMenu((current) => (current === next ? null : next));
+    setAssignFor(null);
+  }
+
+  function toggleSort(key: SortKey) {
+    setPage(1);
+    setSort((current) => {
+      if (!current || current.key !== key) return { key, dir: "asc" };
+      if (current.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  }
+
+  function toggleFilterValue(groupId: string, value: string) {
+    setPage(1);
+    setSavedId(null);
+    setActiveFilters((current) => {
+      const existing = current[groupId] ?? [];
+      const next = existing.includes(value) ? existing.filter((item) => item !== value) : [...existing, value];
+      return { ...current, [groupId]: next };
+    });
+  }
+
+  function toggleColumn(key: ColumnKey) {
+    setHiddenColumns((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleRow(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function togglePage(checked: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      pageRows.forEach((lead) => {
+        if (checked) next.add(lead.id);
+        else next.delete(lead.id);
+      });
+      return next;
+    });
+  }
+
+  function navigateLead(id: string | null) {
+    const hash = id ? `#/leads/${encodeURIComponent(id)}/full` : "#/leads";
+    if (window.location.hash !== hash) window.history.pushState({ leadId: id }, "", hash);
+    setRoute({ id, full: Boolean(id) });
+  }
+
+  function openLeadPage(id: string) {
+    navigateLead(id);
+  }
+
+  function closeLead() {
+    navigateLead(null);
+  }
+
+  function updateLead(next: Lead) {
+    setLeads((current) => current.map((lead) => (lead.id === next.id ? next : lead)));
+  }
+
+  function assign(id: string, assignee: Assignee | null) {
+    setLeads((current) => current.map((lead) => (lead.id === id ? { ...lead, assignee } : lead)));
+    setAssignFor(null);
+  }
+
+  function exportCsv() {
+    const header = visibleColumns.map((column) => column.label).join(",");
+    const body = filtered
+      .map((lead) => visibleColumns.map((column) => `"${leadValue(lead, column.key).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([`${header}\n${body}`], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "leads.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+    setMenu(null);
+  }
+
+  function importCsv(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      const start = lines[0]?.toLowerCase().includes("name") ? 1 : 0;
+      const imported: Lead[] = lines.slice(start).map((line, index) => {
+        const [name = "", address = "", state = ""] = line.split(",").map((part) => part.trim().replace(/^"|"$/g, ""));
+        return {
+          id: `import-${Date.now()}-${index}`,
+          name: name || "Untitled lead",
+          zipcode: "N/A",
+          city: "N/A",
+          status: "Raw",
+          address: address || "N/A",
+          country: "US",
+          county: "N/A",
+          state: state || "N/A",
+          buildingStatus: "Existing",
+          assignee: null,
+          processed: "N/A",
+          primaryVertical: "Commercial",
+          added: new Date().toLocaleDateString("en-GB"),
+          addedBy: "N/A",
+          modified: "N/A",
+          modifiedBy: "N/A",
+          source: "Import",
+          dataType: "Csv",
+          tenancy: "Single",
+          landArea: "N/A",
+          amenities: "N/A",
+          rba: "N/A",
+          loadingDocks: "N/A",
+          parkingSpaces: "N/A",
+          validation: "Validation In Process",
+          companies: [],
+        };
+      });
+      if (imported.length) {
+        setLeads((current) => [...imported, ...current]);
+        setPage(1);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function createLead() {
+    if (!draft.name.trim()) return;
+    const lead: Lead = {
+      id: `new-${Date.now()}`,
+      name: draft.name.trim(),
+      zipcode: "N/A",
+      city: "N/A",
+      status: draft.status,
+      address: draft.address.trim() || "N/A",
+      country: "US",
+      county: "N/A",
+      state: draft.state.trim() || "N/A",
+      buildingStatus: "Existing",
+      assignee: null,
+      processed: "N/A",
+      primaryVertical: "Commercial",
+      added: new Date().toLocaleDateString("en-GB"),
+      addedBy: "Aleena",
+      modified: "N/A",
+      modifiedBy: "N/A",
+      source: "Manual",
+      dataType: "Csv",
+      tenancy: "Single",
+      landArea: "N/A",
+      amenities: "N/A",
+      rba: "N/A",
+      loadingDocks: "N/A",
+      parkingSpaces: "N/A",
+      validation: "Validation In Process",
+      companies: [],
+    };
+    setLeads((current) => [lead, ...current]);
+    setPage(1);
+    setDraft({ name: "", address: "", state: "", status: "Raw" });
+    setCreateOpen(false);
+  }
+
+  const openLead = leads.find((lead) => lead.id === openLeadId) ?? null;
+
+  const leadDetail = openLead && (
+    <LeadDetail lead={openLead} leads={leads} onOpenLead={openLeadPage} onChange={updateLead} onBack={closeLead} />
+  );
+
+  return (
+    <div className="app" ref={rootRef}>
+      <header className="nav">
+        <div className="nav-brand">
+          <img className="logo" src="/assets/logo.svg" alt="Signal" />
+          <span className="nav-divider" aria-hidden="true">
+            <img src="/assets/divider.svg" alt="" />
+          </span>
+          <p className="product-name">Leads Management</p>
+        </div>
+        <nav className="nav-links" aria-label="Primary">
+          <button type="button" className="nav-link">
+            <Icon src="/assets/icon-dashboard.svg" alt="" />
+            Dashboard
+          </button>
+          <button type="button" className="nav-link is-active" aria-current="page" onClick={closeLead}>
+            <Icon src="/assets/icon-leads.svg" alt="" />
+            Leads
+          </button>
+          <button type="button" className="nav-link">
+            <Icon src="/assets/icon-activity.svg" alt="" />
+            Activity Logs
+          </button>
+        </nav>
+        <div className="nav-tools">
+          <div className="menu-anchor">
+            <button
+              type="button"
+              className="country"
+              data-menu-trigger
+              aria-expanded={menu === "country"}
+              onClick={() => toggleMenu("country")}
+            >
+              <span className="flag">
+                <img src="/assets/flag-usa.png" alt="" />
+              </span>
+              <span>USA</span>
+              <Icon src="/assets/chevron-down.svg" alt="" />
+            </button>
+            {menu === "country" && (
+              <div className="menu" data-menu role="menu">
+                <button type="button" className="menu-item is-selected" role="menuitem">
+                  USA
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="menu-anchor">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Notifications"
+              data-menu-trigger
+              aria-expanded={menu === "notifications"}
+              onClick={() => toggleMenu("notifications")}
+            >
+              <Icon src="/assets/icon-bell.svg" alt="" />
+            </button>
+            {menu === "notifications" && (
+              <div className="menu menu-wide" data-menu>
+                <p className="menu-title">Notifications</p>
+                <p className="menu-note">You're all caught up.</p>
+              </div>
+            )}
+          </div>
+          <div className="menu-anchor">
+            <button
+              type="button"
+              className="profile"
+              data-menu-trigger
+              aria-expanded={menu === "profile"}
+              onClick={() => toggleMenu("profile")}
+            >
+              <img className="profile-photo" src="/assets/avatar-aleena.png" alt="" />
+              <span className="profile-text">
+                <span className="profile-name">Aleena</span>
+                <span className="profile-role">Admin</span>
+              </span>
+              <Icon src="/assets/chevron-down-sm.svg" alt="" />
+            </button>
+            {menu === "profile" && (
+              <div className="menu" data-menu>
+                <p className="menu-title">Aleena</p>
+                <p className="menu-note">Admin</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {openLead && leadDetail}
+
+      {!openLead && (
+      <>
+      <div className="page-header">
+        <h1>Leads</h1>
+        <div className="header-actions">
+          <div className="menu-anchor">
+            <button
+              type="button"
+              className="btn"
+              data-menu-trigger
+              aria-expanded={menu === "export"}
+              onClick={() => toggleMenu("export")}
+            >
+              <Icon src="/assets/icon-export.svg" alt="" />
+              <span className="btn-label">
+                Export
+                <Icon src="/assets/chevron-export.svg" alt="" />
+              </span>
+            </button>
+            {menu === "export" && (
+              <div className="menu" data-menu>
+                <button type="button" className="menu-item" onClick={exportCsv}>
+                  Export CSV
+                </button>
+              </div>
+            )}
+          </div>
+          <button type="button" className="btn" onClick={() => fileRef.current?.click()}>
+            <Icon src="/assets/icon-import.svg" alt="" />
+            Import
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) importCsv(file);
+              event.target.value = "";
+            }}
+          />
+          <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+            <Icon src="/assets/icon-plus.svg" alt="" />
+            Create a Lead
+          </button>
+        </div>
+      </div>
+
+      <div className="workspace">
+        {filtersOpen && (
+          <aside className="filters" aria-label="Filters">
+            <div className="filters-head">
+              <div className="filters-title-row">
+                <h2>Filters</h2>
+                <button type="button" className="btn btn-sm btn-primary">
+                  Save filter
+                </button>
+              </div>
+              <div className="filter-switch" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filterTab === "all"}
+                  className={filterTab === "all" ? "is-active" : ""}
+                  onClick={() => setFilterTab("all")}
+                >
+                  All Filters
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filterTab === "saved"}
+                  className={filterTab === "saved" ? "is-active" : ""}
+                  onClick={() => setFilterTab("saved")}
+                >
+                  Saved Filters
+                </button>
+              </div>
+            </div>
+            <div className="filters-body">
+              {filterTab === "all" ? (
+                filterGroups.map((group) => {
+                  const values = group.field
+                    ? [...new Set(leads.map((lead) => leadValue(lead, group.field as ColumnKey)).filter((value) => value !== "-" && value !== "N/A"))]
+                    : [];
+                  const open = openFilter === group.id;
+                  return (
+                    <div key={group.id} className="filter-block">
+                      <button
+                        type="button"
+                        className="filter-row"
+                        aria-expanded={open}
+                        onClick={() => setOpenFilter(open ? null : group.id)}
+                      >
+                        <span>{group.label}</span>
+                        <img className={open ? "chevron is-open" : "chevron"} src="/assets/chevron-filter.svg" alt="" />
+                      </button>
+                      {open && (
+                        <div className="filter-options">
+                          {values.length === 0 && <p className="filter-empty">No values</p>}
+                          {values.map((value) => (
+                            <label key={value} className="option">
+                              <input
+                                type="checkbox"
+                                checked={activeFilters[group.id]?.includes(value) ?? false}
+                                onChange={() => toggleFilterValue(group.id, value)}
+                              />
+                              <span>{value}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="saved-list">
+                  {[
+                    { id: "unassigned", label: "Unassigned leads" },
+                    { id: "attention", label: "Attention required" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={savedId === item.id ? "saved-item is-active" : "saved-item"}
+                      onClick={() => {
+                        setSavedId((current) => (current === item.id ? null : item.id));
+                        setPage(1);
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+
+        <section className="board">
+          <div className="toolbar">
+            <div className="toolbar-left">
+              <label className="search">
+                <Icon src="/assets/icon-search.svg" alt="" />
+                <input
+                  value={query}
+                  placeholder="Search"
+                  aria-label="Search"
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setPage(1);
+                  }}
+                />
+              </label>
+              <div className="avatar-stack" aria-hidden="true">
+                {["avatar-1", "avatar-2", "avatar-3", "avatar-4", "avatar-5"].map((file) => (
+                  <img key={file} src={`/assets/${file}.png`} alt="" />
+                ))}
+                <span className="avatar-more">+10</span>
+              </div>
+            </div>
+            <div className="toolbar-right">
+              <button type="button" className="btn" onClick={() => setFiltersOpen((open) => !open)}>
+                <Icon src="/assets/icon-filters.svg" alt="" />
+                {filtersOpen ? "Hide Filters" : "Show Filters"}
+              </button>
+              <div className="menu-anchor">
+                <button
+                  type="button"
+                  className="btn"
+                  data-menu-trigger
+                  aria-expanded={menu === "sort"}
+                  onClick={() => toggleMenu("sort")}
+                >
+                  <Icon src="/assets/icon-sort.svg" alt="" />
+                  Sort
+                </button>
+                {menu === "sort" && (
+                  <div className="menu" data-menu>
+                    {(
+                      [
+                        ["name", "Property Name"],
+                        ["added", "Added"],
+                        ["modified", "Last Modified"],
+                        ["state", "State"],
+                      ] as [SortKey, string][]
+                    ).map(([key, label]) => (
+                      <button key={key} type="button" className="menu-item" onClick={() => toggleSort(key)}>
+                        {label}
+                        {sort?.key === key ? (sort.dir === "asc" ? " ↑" : " ↓") : ""}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="menu-anchor">
+                <button
+                  type="button"
+                  className="btn"
+                  data-menu-trigger
+                  aria-expanded={menu === "customize"}
+                  onClick={() => toggleMenu("customize")}
+                >
+                  <Icon src="/assets/icon-customize.svg" alt="" />
+                  Customize
+                </button>
+                {menu === "customize" && (
+                  <div className="menu menu-scroll" data-menu>
+                    {columns.map((column) => (
+                      <label key={column.key} className="option">
+                        <input
+                          type="checkbox"
+                          checked={!hiddenColumns.has(column.key)}
+                          onChange={() => toggleColumn(column.key)}
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="check-col">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all leads on this page"
+                      checked={allChecked}
+                      onChange={(event) => togglePage(event.target.checked)}
+                    />
+                  </th>
+                  {visibleColumns.map((column) => (
+                    <th
+                      key={column.key}
+                      className={column.key === "address" ? "sticky-name" : undefined}
+                      style={{ width: column.width, minWidth: column.width }}
+                    >
+                      <button type="button" className="sort-head" onClick={() => toggleSort(column.key)}>
+                        <span>{column.label}</span>
+                        <Icon src="/assets/icon-sort-col.svg" alt="" />
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.length === 0 && (
+                  <tr>
+                    <td className="empty" colSpan={visibleColumns.length + 1}>
+                      No leads match these filters.
+                    </td>
+                  </tr>
+                )}
+                {pageRows.map((lead) => (
+                  <tr
+                    key={lead.id}
+                    className={selected.has(lead.id) ? "is-selected is-clickable" : "is-clickable"}
+                    onClick={() => openLeadPage(lead.id)}
+                  >
+                    <td className="check-col" onClick={(event) => event.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${lead.name}`}
+                        checked={selected.has(lead.id)}
+                        onChange={() => toggleRow(lead.id)}
+                      />
+                    </td>
+                    {visibleColumns.map((column) => (
+                      <td
+                        key={column.key}
+                        className={column.key === "address" ? "name-cell sticky-name" : "text-cell"}
+                      >
+                        {column.key === "status" ? (
+                          <span className={statusClass(lead.status)}>
+                            {lead.status}
+                            {lead.status === "Attention Required" && <Icon src="/assets/icon-error.svg" alt="" />}
+                          </span>
+                        ) : column.key === "assignee" ? (
+                          <div className="assign-wrap" data-assign onClick={(event) => event.stopPropagation()}>
+                            {lead.assignee ? (
+                              <button type="button" className="assignee" onClick={() => setAssignFor(lead.id)}>
+                                <img src={lead.assignee.avatar} alt="" />
+                                <span>{lead.assignee.name}</span>
+                              </button>
+                            ) : (
+                              <button type="button" className="assign" onClick={() => setAssignFor(lead.id)}>
+                                <span className="assign-mark">
+                                  <img src="/assets/icon-person.svg" alt="" />
+                                  <span className="assign-plus">
+                                    <img src="/assets/icon-plus-badge.svg" alt="" />
+                                  </span>
+                                </span>
+                                Assign
+                              </button>
+                            )}
+                            {assignFor === lead.id && (
+                              <div className="menu assign-menu" data-menu>
+                                {officers.map((officer) => (
+                                  <button
+                                    key={officer.name}
+                                    type="button"
+                                    className="menu-item"
+                                    onClick={() => assign(lead.id, officer)}
+                                  >
+                                    <img className="mini-avatar" src={officer.avatar} alt="" />
+                                    {officer.name}
+                                  </button>
+                                ))}
+                                {lead.assignee && (
+                                  <button type="button" className="menu-item" onClick={() => assign(lead.id, null)}>
+                                    Unassign
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : column.key === "validation" ? (
+                          <span className="badge badge-enriched">{lead.validation}</span>
+                        ) : column.key === "source" || column.key === "dataType" || column.key === "tenancy" ? (
+                          <span className="badge badge-neutral">{lead[column.key]}</span>
+                        ) : (
+                          leadValue(lead, column.key)
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <footer className="table-footer">
+            <p>{defaultView ? "1.5 M Leads" : `${filtered.length} Leads`}</p>
+            <div className="pager">
+              <div className="menu-anchor">
+                <button
+                  type="button"
+                  className="page-size"
+                  data-menu-trigger
+                  aria-expanded={menu === "pageSize"}
+                  onClick={() => toggleMenu("pageSize")}
+                >
+                  Rows per page: {pageSize}
+                  <Icon src="/assets/chevron-page.svg" alt="" />
+                </button>
+                {menu === "pageSize" && (
+                  <div className="menu menu-up" data-menu>
+                    {pageSizeOptions.map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        className="menu-item"
+                        onClick={() => {
+                          setPageSize(size);
+                          setPage(1);
+                          setMenu(null);
+                        }}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="range">{rangeLabel}</p>
+              <div className="pager-actions">
+                <button
+                  type="button"
+                  className="circle"
+                  aria-label="Previous page"
+                  disabled={safePage === 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  <Icon src="/assets/chevron-left.svg" alt="" />
+                </button>
+                <button
+                  type="button"
+                  className="circle"
+                  aria-label="Next page"
+                  disabled={safePage === pageCount}
+                  onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                >
+                  <Icon src="/assets/chevron-right.svg" alt="" />
+                </button>
+              </div>
+            </div>
+          </footer>
+        </section>
+      </div>
+      </>
+      )}
+
+      {createOpen && (
+        <div className="modal-backdrop" onClick={() => setCreateOpen(false)}>
+          <form
+            className="modal"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              createLead();
+            }}
+          >
+            <h2>Create a Lead</h2>
+            <label>
+              Property name
+              <input
+                value={draft.name}
+                required
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              />
+            </label>
+            <label>
+              Address
+              <input
+                value={draft.address}
+                onChange={(event) => setDraft({ ...draft, address: event.target.value })}
+              />
+            </label>
+            <label>
+              State
+              <input
+                value={draft.state}
+                onChange={(event) => setDraft({ ...draft, state: event.target.value })}
+              />
+            </label>
+            <label>
+              Status
+              <select
+                value={draft.status}
+                onChange={(event) => setDraft({ ...draft, status: event.target.value as Status })}
+              >
+                {statuses.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </select>
+            </label>
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setCreateOpen(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Create a Lead
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
