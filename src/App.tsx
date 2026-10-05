@@ -22,10 +22,6 @@ type Menu = "export" | "country" | "profile" | "notifications" | "sort" | "pageS
 const createVerticals = ["Commercial", "Industrial", "Office", "Retail", "Healthcare", "Mixed Use"];
 const createStates = ["California", "Texas", "Delaware", "Illinois", "Ohio", "Florida", "New York", "Pennsylvania", "Tennessee"];
 const createCities = ["San Francisco", "Los Angeles", "Chicago", "Houston", "Austin", "Celina", "Santa Ana", "Pembroke Pines", "Toledo", "Naperville"];
-const createTenancy = [
-  ["Single", "Single-Tenant"],
-  ["Multi", "Multi-Tenant"],
-] as const;
 
 function emptyCreateDraft() {
   return {
@@ -38,8 +34,6 @@ function emptyCreateDraft() {
     state: "",
     city: "",
     zipcode: "",
-    tenancy: "",
-    landArea: "",
     status: "Raw" as Status,
   };
 }
@@ -450,8 +444,8 @@ export default function App() {
       modifiedBy: "N/A",
       source: "Manual",
       dataType: "Csv",
-      tenancy: draft.tenancy || "N/A",
-      landArea: draft.landArea.trim() || "N/A",
+      tenancy: "N/A",
+      landArea: "N/A",
       amenities: "N/A",
       rba: "N/A",
       loadingDocks: "N/A",
@@ -475,7 +469,17 @@ export default function App() {
   const openLead = leads.find((lead) => lead.id === openLeadId) ?? null;
 
   const leadDetail = openLead && (
-    <LeadDetail lead={openLead} leads={leads} onOpenLead={openLeadPage} onChange={updateLead} onBack={closeLead} />
+    <LeadDetail
+      lead={openLead}
+      leads={leads}
+      onOpenLead={openLeadPage}
+      onChange={updateLead}
+      onCreateLead={(created) => {
+        setLeads((current) => [created, ...current]);
+        setPage(1);
+      }}
+      onBack={closeLead}
+    />
   );
 
   return (
@@ -1069,58 +1073,62 @@ export default function App() {
           >
             <h2>Create a Lead</h2>
             <div className="create-fields">
-              <label className="create-span">
-                <span>Company Name <span className="req">*</span></span>
-                <input
-                  value={draft.companyName}
-                  placeholder="Company Name"
-                  required
-                  onChange={(event) => setDraft({ ...draft, companyName: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Property Name</span>
-                <input
-                  value={draft.name}
-                  placeholder="Enter Property Name"
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Primary Vertical <span className="req">*</span></span>
-                <select
-                  value={draft.primaryVertical}
-                  required
-                  onChange={(event) => setDraft({ ...draft, primaryVertical: event.target.value })}
-                >
-                  <option value="">Primary Vertical</option>
-                  {createVerticals.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Address <span className="req">*</span></span>
-                <input
-                  value={draft.address}
-                  placeholder="Enter Address"
-                  required
-                  onChange={(event) => setDraft({ ...draft, address: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Country <span className="req">*</span></span>
-                <span className="create-country">
-                  <img src="/assets/flag-usa.png" alt="" />
-                  <select
-                    value={draft.country}
+              <div className="create-row-3">
+                <label>
+                  <span>Company Name <span className="req">*</span></span>
+                  <input
+                    value={draft.companyName}
+                    placeholder="Company Name"
                     required
-                    onChange={(event) => setDraft({ ...draft, country: event.target.value })}
+                    onChange={(event) => setDraft({ ...draft, companyName: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Property Name</span>
+                  <input
+                    value={draft.name}
+                    placeholder="Enter Property Name"
+                    onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Primary Vertical <span className="req">*</span></span>
+                  <select
+                    value={draft.primaryVertical}
+                    required
+                    onChange={(event) => setDraft({ ...draft, primaryVertical: event.target.value })}
                   >
-                    <option>United States</option>
+                    <option value="">Primary Vertical</option>
+                    {createVerticals.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
                   </select>
-                </span>
-              </label>
+                </label>
+              </div>
+              <div className="create-row-3">
+                <label className="create-span-2">
+                  <span>Address <span className="req">*</span></span>
+                  <input
+                    value={draft.address}
+                    placeholder="Enter Address"
+                    required
+                    onChange={(event) => setDraft({ ...draft, address: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Country <span className="req">*</span></span>
+                  <span className="create-country">
+                    <img src="/assets/flag-usa.png" alt="" />
+                    <select
+                      value={draft.country}
+                      required
+                      onChange={(event) => setDraft({ ...draft, country: event.target.value })}
+                    >
+                      <option>United States</option>
+                    </select>
+                  </span>
+                </label>
+              </div>
               <div className="create-row-3">
                 <label>
                   <span>County <span className="req">*</span></span>
@@ -1160,32 +1168,12 @@ export default function App() {
               </div>
               <div className="create-row-3">
                 <label>
-                  <span>Zipcode <span className="req">*</span></span>
+                  <span>Zip/Postal Code <span className="req">*</span></span>
                   <input
                     value={draft.zipcode}
-                    placeholder="Enter Zipcode"
+                    placeholder="Enter Zip/Postal Code"
                     required
                     onChange={(event) => setDraft({ ...draft, zipcode: event.target.value })}
-                  />
-                </label>
-                <label>
-                  <span>Tenancy</span>
-                  <select
-                    value={draft.tenancy}
-                    onChange={(event) => setDraft({ ...draft, tenancy: event.target.value })}
-                  >
-                    <option value="">Tenancy</option>
-                    {createTenancy.map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Land Area</span>
-                  <input
-                    value={draft.landArea}
-                    placeholder="Enter Land Area"
-                    onChange={(event) => setDraft({ ...draft, landArea: event.target.value })}
                   />
                 </label>
               </div>

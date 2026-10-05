@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PropertyMap } from "./PropertyMap";
 import {
@@ -71,6 +71,36 @@ const propertyCities = [
   "Toledo",
   "Naperville",
 ];
+function emptyParentDraft() {
+  return {
+    companyName: "",
+    name: "",
+    primaryVertical: "",
+    address: "",
+    country: "United States",
+    county: "",
+    state: "",
+    city: "",
+    zipcode: "",
+  };
+}
+
+function parentCompanyChoices(leads: Lead[], currentCompanyId: string) {
+  const seen = new Set<string>();
+  const options: { id: string; name: string }[] = [];
+  for (const item of leads) {
+    for (const company of item.companies) {
+      const name = company.name.trim();
+      if (!name || company.id === currentCompanyId) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      options.push({ id: company.id, name });
+    }
+  }
+  options.sort((a, b) => a.name.localeCompare(b.name));
+  return options;
+}
 
 const ownerAffiliationOptions = [
   "Decision Maker",
@@ -1043,17 +1073,138 @@ function CompanySearch({ value, onChange }: { value: string; onChange: (value: s
   );
 }
 
+function ParentCompanyField({
+  value,
+  options,
+  suffix,
+  onSelect,
+  onCreateNew,
+}: {
+  value: string;
+  options: { id: string; name: string }[];
+  suffix?: ReactNode;
+  onSelect: (name: string) => void;
+  onCreateNew: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
+  const current = value.trim();
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = 280;
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      const spaceBelow = window.innerHeight - rect.bottom - 12;
+      setMenuStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left,
+        width,
+        maxHeight: Math.max(180, Math.min(320, spaceBelow)),
+        zIndex: 25,
+      });
+    }
+    place();
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", place);
+    document.addEventListener("scroll", place, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", place);
+      document.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
+  return (
+    <div className="kv-row inline-field is-parent">
+      <span className="kv-label">Parent Company</span>
+      <div className="kv-value">
+        <button
+          ref={triggerRef}
+          type="button"
+          className={current ? "inline-field-value" : "inline-field-value is-placeholder"}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => setOpen((next) => !next)}
+        >
+          <span className="inline-field-text">{current || "Enter Parent Company"}</span>
+        </button>
+        {suffix}
+        {open &&
+          createPortal(
+            <div ref={menuRef} className="parent-company-menu" style={menuStyle} role="listbox" aria-label="Companies">
+              <ul>
+                {options.map((option) => {
+                  const selected = option.name.toLowerCase() === current.toLowerCase();
+                  return (
+                    <li key={option.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        className={selected ? "is-selected" : undefined}
+                        onClick={() => {
+                          onSelect(option.name);
+                          setOpen(false);
+                        }}
+                      >
+                        <span className="inline-radio" />
+                        {option.name}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <button
+                type="button"
+                className="parent-company-create"
+                onClick={() => {
+                  setOpen(false);
+                  onCreateNew();
+                }}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M8 3.25v9.5M3.25 8h9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                Create new
+              </button>
+            </div>,
+            document.body,
+          )}
+      </div>
+    </div>
+  );
+}
+
 export function LeadDetail({
   lead,
   leads,
   onOpenLead,
   onChange,
+  onCreateLead,
   onBack,
 }: {
   lead: Lead;
   leads: Lead[];
   onOpenLead: (id: string) => void;
   onChange: (lead: Lead) => void;
+  onCreateLead: (lead: Lead) => void;
   onBack: () => void;
 }) {
   const [selectedId, setSelectedId] = useState(lead.companies[0]?.id ?? "");
@@ -1066,6 +1217,8 @@ export function LeadDetail({
   const [companyQuery, setCompanyQuery] = useState("");
   const [propertyMenuOpen, setPropertyMenuOpen] = useState(false);
   const [leadConfirm, setLeadConfirm] = useState<"archive" | "enrich" | null>(null);
+  const [createParentOpen, setCreateParentOpen] = useState(false);
+  const [parentDraft, setParentDraft] = useState(emptyParentDraft);
   const [activeErrorId, setActiveErrorId] = useState<string | null>(null);
   const propertyMenuRef = useRef<HTMLDivElement>(null);
   const companyDetailScrollRef = useRef<HTMLDivElement>(null);
@@ -1084,6 +1237,7 @@ export function LeadDetail({
     setPropertyMenuOpen(false);
     setLeadConfirm(null);
     setActiveErrorId(null);
+    setCreateParentOpen(false);
   }, [lead.id]);
 
   useEffect(() => {
@@ -1246,6 +1400,62 @@ export function LeadDetail({
         ),
       }),
     );
+  }
+
+  function createParentLead() {
+    const companyName = parentDraft.companyName.trim();
+    const required = [
+      companyName,
+      parentDraft.primaryVertical,
+      parentDraft.address.trim(),
+      parentDraft.country,
+      parentDraft.county.trim(),
+      parentDraft.state,
+      parentDraft.city,
+      parentDraft.zipcode.trim(),
+    ];
+    if (required.some((value) => !value)) return;
+    const propertyName = parentDraft.name.trim() || companyName;
+    const created: Lead = {
+      id: `new-${Date.now()}`,
+      name: propertyName,
+      zipcode: parentDraft.zipcode.trim(),
+      city: parentDraft.city,
+      status: "Raw",
+      address: parentDraft.address.trim(),
+      country: "US",
+      county: parentDraft.county.trim(),
+      state: parentDraft.state,
+      buildingStatus: "Existing",
+      assignee: null,
+      processed: "N/A",
+      primaryVertical: parentDraft.primaryVertical,
+      added: new Date().toLocaleDateString("en-GB"),
+      addedBy: "Aleena",
+      modified: "N/A",
+      modifiedBy: "N/A",
+      source: "Manual",
+      dataType: "Csv",
+      tenancy: "N/A",
+      landArea: "N/A",
+      amenities: "N/A",
+      rba: "N/A",
+      loadingDocks: "N/A",
+      parkingSpaces: "N/A",
+      validation: "Validation In Process",
+      companies: [
+        {
+          ...emptyCompany(),
+          id: `c-${Date.now()}`,
+          name: companyName,
+          status: "Cleaned",
+        },
+      ],
+    };
+    onCreateLead(created);
+    updateCompanyField("parentCompany", companyName);
+    setParentDraft(emptyParentDraft());
+    setCreateParentOpen(false);
   }
 
   function openAddCompanyModal() {
@@ -1782,11 +1992,14 @@ export function LeadDetail({
                           onCommit={(value) => updateCompanyField(field.key, value)}
                         />
                       ))}
-                      <InlineField
-                        label="Parent Company"
-                        emptyLabel="Enter Parent Company"
-                        tone="parent"
+                      <ParentCompanyField
                         value={selected.parentCompany ?? ""}
+                        options={parentCompanyChoices(leads, selected.id)}
+                        onSelect={(name) => updateCompanyField("parentCompany", name)}
+                        onCreateNew={() => {
+                          setParentDraft(emptyParentDraft());
+                          setCreateParentOpen(true);
+                        }}
                         suffix={
                           parentPropertyId && (selected.parentCompany ?? "").trim() ? (
                             <button
@@ -1808,7 +2021,6 @@ export function LeadDetail({
                             </button>
                           ) : undefined
                         }
-                        onCommit={(value) => updateCompanyField("parentCompany", value)}
                       />
                     </div>
                   </section>
@@ -2291,6 +2503,137 @@ export function LeadDetail({
               </button>
               <button type="submit" className="btn btn-primary">
                 {contactMode === "add" ? "Add Contact" : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {createParentOpen && (
+        <div className="modal-backdrop" onClick={() => setCreateParentOpen(false)}>
+          <form
+            className="modal modal-create"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              createParentLead();
+            }}
+          >
+            <h2>Create a Lead</h2>
+            <div className="create-fields">
+              <div className="create-row-3">
+                <label>
+                  <span>Company Name <span className="req">*</span></span>
+                  <input
+                    value={parentDraft.companyName}
+                    placeholder="Company Name"
+                    required
+                    onChange={(event) => setParentDraft((current) => ({ ...current, companyName: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>Property Name</span>
+                  <input
+                    value={parentDraft.name}
+                    placeholder="Enter Property Name"
+                    onChange={(event) => setParentDraft((current) => ({ ...current, name: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>Primary Vertical <span className="req">*</span></span>
+                  <select
+                    value={parentDraft.primaryVertical}
+                    required
+                    onChange={(event) => setParentDraft((current) => ({ ...current, primaryVertical: event.target.value }))}
+                  >
+                    <option value="">Primary Vertical</option>
+                    {propertyPrimaryVerticals.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="create-row-3">
+                <label className="create-span-2">
+                  <span>Address <span className="req">*</span></span>
+                  <input
+                    value={parentDraft.address}
+                    placeholder="Enter Address"
+                    required
+                    onChange={(event) => setParentDraft((current) => ({ ...current, address: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>Country <span className="req">*</span></span>
+                  <span className="create-country">
+                    <img src="/assets/flag-usa.png" alt="" />
+                    <select
+                      value={parentDraft.country}
+                      required
+                      onChange={(event) => setParentDraft((current) => ({ ...current, country: event.target.value }))}
+                    >
+                      {propertyCountries.map((option) => (
+                        <option key={option}>{option}</option>
+                      ))}
+                    </select>
+                  </span>
+                </label>
+              </div>
+              <div className="create-row-3">
+                <label>
+                  <span>County <span className="req">*</span></span>
+                  <input
+                    value={parentDraft.county}
+                    placeholder="Enter County"
+                    required
+                    onChange={(event) => setParentDraft((current) => ({ ...current, county: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>State <span className="req">*</span></span>
+                  <select
+                    value={parentDraft.state}
+                    required
+                    onChange={(event) => setParentDraft((current) => ({ ...current, state: event.target.value }))}
+                  >
+                    <option value="">State</option>
+                    {propertyStates.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>City <span className="req">*</span></span>
+                  <select
+                    value={parentDraft.city}
+                    required
+                    onChange={(event) => setParentDraft((current) => ({ ...current, city: event.target.value }))}
+                  >
+                    <option value="">City</option>
+                    {propertyCities.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="create-row-3">
+                <label>
+                  <span>Zip/Postal Code <span className="req">*</span></span>
+                  <input
+                    value={parentDraft.zipcode}
+                    placeholder="Enter Zip/Postal Code"
+                    required
+                    onChange={(event) => setParentDraft((current) => ({ ...current, zipcode: event.target.value }))}
+                  />
+                </label>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn" onClick={() => setCreateParentOpen(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Create a Lead
               </button>
             </div>
           </form>
