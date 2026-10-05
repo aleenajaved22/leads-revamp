@@ -236,7 +236,7 @@ export default function App() {
 
   const visibleColumns = columnOrder
     .map((key) => columnByKey.get(key))
-    .filter((column): column is Column => Boolean(column) && !hiddenColumns.has(column.key));
+    .filter((column): column is Column => column != null && !hiddenColumns.has(column.key));
   const allChecked = pageRows.length > 0 && pageRows.every((lead) => selected.has(lead.id));
 
   function toggleMenu(next: Menu) {
