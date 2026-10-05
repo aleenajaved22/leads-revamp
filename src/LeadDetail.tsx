@@ -4,6 +4,7 @@ import { PropertyMap } from "./PropertyMap";
 import {
   addressChoices,
   companyStatusClass,
+  type AddressChoice,
   emptyCompany,
   emptyContact,
   occupancyFloorValue,
@@ -72,6 +73,15 @@ const propertyCities = [
   "Toledo",
   "Naperville",
 ];
+function propertyAddressOptions(leads: Lead[], currentAddress: string) {
+  const list = addressChoices(leads);
+  const trimmed = currentAddress.trim();
+  if (trimmed && trimmed !== "N/A" && !list.some((item) => item.address === trimmed)) {
+    return [{ address: trimmed, country: "", county: "", state: "", city: "", zipcode: "" }, ...list];
+  }
+  return list;
+}
+
 function emptyParentDraft() {
   return {
     companyName: "",
@@ -550,76 +560,104 @@ function ActivityHint({ lead }: { lead: Lead }) {
 function AddressHeading({
   value,
   invalid,
-  onCommit,
+  options,
+  onSelect,
 }: {
   value: string;
   invalid?: boolean;
-  onCommit: (value: string) => void;
+  options: AddressChoice[];
+  onSelect: (choice: AddressChoice) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const display = value.trim() && value !== "N/A" ? value : "Address unavailable";
+  const current = display === "Address unavailable" ? "" : display;
 
-  useEffect(() => {
-    if (!editing) setDraft(display === "Address unavailable" ? "" : display);
-  }, [editing, display]);
-
-  useEffect(() => {
-    if (!editing || !inputRef.current) return;
-    const input = inputRef.current;
-    input.focus();
-    const end = input.value.length;
-    input.setSelectionRange(end, end);
-  }, [editing]);
-
-  function commit(next = draft) {
-    setEditing(false);
-    const trimmed = next.trim();
-    const current = display === "Address unavailable" ? "" : display;
-    if (trimmed !== current) onCommit(trimmed);
-  }
-
-  const text = editing ? draft || " " : display;
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.min(Math.max(rect.width, 420), window.innerWidth - 16);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      const spaceBelow = window.innerHeight - rect.bottom - 12;
+      setMenuStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left,
+        width,
+        maxHeight: Math.max(180, Math.min(320, spaceBelow)),
+        zIndex: 25,
+      });
+    }
+    place();
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", place);
+    document.addEventListener("scroll", place, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", place);
+      document.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
 
   return (
     <span className="summary-title-slot">
       <span className="summary-title-mirror" aria-hidden="true">
-        {text}
+        {display}
       </span>
-      {editing ? (
-        <textarea
-          ref={inputRef}
-          className={invalid ? "summary-title-input is-error" : "summary-title-input"}
-          value={draft}
-          aria-label="Property address"
-          aria-invalid={invalid || undefined}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => commit()}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              commit();
-            }
-            if (event.key === "Escape") {
-              setDraft(display === "Address unavailable" ? "" : display);
-              setEditing(false);
-            }
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          className={invalid ? "summary-title is-error" : "summary-title"}
-          aria-invalid={invalid || undefined}
-          onClick={() => {
-            setDraft(display === "Address unavailable" ? "" : display);
-            setEditing(true);
-          }}
-        >
-          {display}
-        </button>
-      )}
+      <button
+        ref={triggerRef}
+        type="button"
+        className={invalid ? "summary-title is-error" : "summary-title"}
+        aria-label="Property address"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-invalid={invalid || undefined}
+        onClick={() => setOpen((next) => !next)}
+      >
+        {display}
+      </button>
+      {open &&
+        createPortal(
+          <div ref={menuRef} className="address-heading-menu" style={menuStyle} role="listbox" aria-label="Property addresses">
+            <ul>
+              {options.map((option) => {
+                const selected = option.address === current;
+                return (
+                  <li key={option.address}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={selected ? "is-selected" : undefined}
+                      onClick={() => {
+                        onSelect(option);
+                        setOpen(false);
+                      }}
+                    >
+                      {option.address}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>,
+          document.body,
+        )}
     </span>
   );
 }
@@ -1729,7 +1767,17 @@ export function LeadDetail({
                   <AddressHeading
                     value={location}
                     invalid={activeError?.anchor === "property-address"}
-                    onCommit={(value) => updateLead({ address: value })}
+                    options={propertyAddressOptions(leads, lead.address)}
+                    onSelect={(choice) =>
+                      updateLead({
+                        address: choice.address,
+                        country: countryCode(choice.country || "United States"),
+                        county: choice.county,
+                        state: choice.state,
+                        city: choice.city,
+                        zipcode: choice.zipcode,
+                      })
+                    }
                   />
                 </h1>
                 {lead.archived && <span className="badge badge-neutral">Archived</span>}

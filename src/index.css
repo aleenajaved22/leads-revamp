@@ -2865,6 +2865,41 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
   color: #0b57d0;
 }
 
+.address-heading-menu {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(9 30 66 / 16%), 0 0 1px rgb(9 30 66 / 24%);
+}
+
+.address-heading-menu ul {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  overflow: auto;
+  min-height: 0;
+}
+
+.address-heading-menu ul button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  color: #172b4d;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: left;
+  white-space: normal;
+}
+
+.address-heading-menu ul button:hover,
+.address-heading-menu ul button.is-selected {
+  background: #f4f5f7;
+}
+
 .parent-company-menu {
   display: flex;
   flex-direction: column;
