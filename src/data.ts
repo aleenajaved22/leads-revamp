@@ -86,6 +86,74 @@ export type Lead = {
   companies: Company[];
 };
 
+export type AddressChoice = {
+  address: string;
+  country: string;
+  county: string;
+  state: string;
+  city: string;
+  zipcode: string;
+};
+
+const countyByState: Record<string, string> = {
+  Illinois: "Cook",
+  Delaware: "New Castle",
+  "New Jersey": "Essex",
+  Hawaii: "Honolulu",
+  Kentucky: "Jefferson",
+  Maine: "Cumberland",
+  "New Mexico": "Bernalillo",
+  California: "Los Angeles",
+  Texas: "Harris",
+  Ohio: "Lucas",
+  Florida: "Broward",
+  "New York": "New York",
+  Pennsylvania: "Allegheny",
+  Tennessee: "Davidson",
+};
+
+function locationFromAddress(address: string) {
+  const match = address.match(/^(.*?)\.\s+(.+),\s+(.+?)\s+(\d+)\s*$/);
+  if (!match) return null;
+  const city = match[2].trim();
+  const state = match[3].trim();
+  const zipcode = match[4];
+  if (!city || !state || !zipcode) return null;
+  return {
+    country: "United States",
+    county: countyByState[state] ?? "",
+    state,
+    city,
+    zipcode,
+  };
+}
+
+export function addressChoices(leads: Pick<Lead, "address" | "country" | "county" | "state" | "city" | "zipcode">[]) {
+  const seen = new Set<string>();
+  const choices: AddressChoice[] = [];
+  for (const lead of leads) {
+    const address = lead.address.trim();
+    const key = address.toLowerCase();
+    if (!address || address === "N/A" || seen.has(key)) continue;
+    seen.add(key);
+    const parsed = locationFromAddress(address);
+    if (parsed) {
+      choices.push({ address, ...parsed });
+      continue;
+    }
+    const country = lead.country === "US" || lead.country === "United States" ? "United States" : lead.country.trim();
+    choices.push({
+      address,
+      country,
+      county: lead.county === "N/A" ? "" : lead.county,
+      state: lead.state === "N/A" ? "" : lead.state,
+      city: lead.city === "N/A" ? "" : lead.city,
+      zipcode: lead.zipcode === "N/A" ? "" : lead.zipcode,
+    });
+  }
+  return choices;
+}
+
 export type ColumnKey =
   | Exclude<keyof Lead, "id" | "assignee" | "companies" | "archived" | "floorCount">
   | "assignee";

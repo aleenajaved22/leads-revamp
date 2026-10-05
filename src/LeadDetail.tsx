@@ -2,6 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSPropert
 import { createPortal } from "react-dom";
 import { PropertyMap } from "./PropertyMap";
 import {
+  addressChoices,
   companyStatusClass,
   emptyCompany,
   emptyContact,
@@ -77,7 +78,7 @@ function emptyParentDraft() {
     name: "",
     primaryVertical: "",
     address: "",
-    country: "United States",
+    country: "",
     county: "",
     state: "",
     city: "",
@@ -1402,6 +1403,19 @@ export function LeadDetail({
     );
   }
 
+  function applyParentAddress(address: string) {
+    const match = addressChoices(leads).find((item) => item.address === address);
+    setParentDraft((current) => ({
+      ...current,
+      address,
+      country: match?.country ?? "",
+      county: match?.county ?? "",
+      state: match?.state ?? "",
+      city: match?.city ?? "",
+      zipcode: match?.zipcode ?? "",
+    }));
+  }
+
   function createParentLead() {
     const companyName = parentDraft.companyName.trim();
     const required = [
@@ -2556,22 +2570,23 @@ export function LeadDetail({
               <div className="create-row-3">
                 <label className="create-span-2">
                   <span>Address <span className="req">*</span></span>
-                  <input
+                  <select
                     value={parentDraft.address}
-                    placeholder="Enter Address"
                     required
-                    onChange={(event) => setParentDraft((current) => ({ ...current, address: event.target.value }))}
-                  />
+                    onChange={(event) => applyParentAddress(event.target.value)}
+                  >
+                    <option value="">Enter Address</option>
+                    {addressChoices(leads).map((option) => (
+                      <option key={option.address} value={option.address}>{option.address}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   <span>Country <span className="req">*</span></span>
                   <span className="create-country">
-                    <img src="/assets/flag-usa.png" alt="" />
-                    <select
-                      value={parentDraft.country}
-                      required
-                      onChange={(event) => setParentDraft((current) => ({ ...current, country: event.target.value }))}
-                    >
+                    {parentDraft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
+                    <select value={parentDraft.country} required disabled>
+                      <option value="">Country</option>
                       {propertyCountries.map((option) => (
                         <option key={option}>{option}</option>
                       ))}
@@ -2582,35 +2597,22 @@ export function LeadDetail({
               <div className="create-row-3">
                 <label>
                   <span>County <span className="req">*</span></span>
-                  <input
-                    value={parentDraft.county}
-                    placeholder="Enter County"
-                    required
-                    onChange={(event) => setParentDraft((current) => ({ ...current, county: event.target.value }))}
-                  />
+                  <input value={parentDraft.county} placeholder="Enter County" required disabled readOnly />
                 </label>
                 <label>
                   <span>State <span className="req">*</span></span>
-                  <select
-                    value={parentDraft.state}
-                    required
-                    onChange={(event) => setParentDraft((current) => ({ ...current, state: event.target.value }))}
-                  >
+                  <select value={parentDraft.state} required disabled>
                     <option value="">State</option>
-                    {propertyStates.map((option) => (
+                    {withCurrentOption(parentDraft.state, propertyStates).map((option) => (
                       <option key={option}>{option}</option>
                     ))}
                   </select>
                 </label>
                 <label>
                   <span>City <span className="req">*</span></span>
-                  <select
-                    value={parentDraft.city}
-                    required
-                    onChange={(event) => setParentDraft((current) => ({ ...current, city: event.target.value }))}
-                  >
+                  <select value={parentDraft.city} required disabled>
                     <option value="">City</option>
-                    {propertyCities.map((option) => (
+                    {withCurrentOption(parentDraft.city, propertyCities).map((option) => (
                       <option key={option}>{option}</option>
                     ))}
                   </select>
@@ -2619,12 +2621,7 @@ export function LeadDetail({
               <div className="create-row-3">
                 <label>
                   <span>Zip/Postal Code <span className="req">*</span></span>
-                  <input
-                    value={parentDraft.zipcode}
-                    placeholder="Enter Zip/Postal Code"
-                    required
-                    onChange={(event) => setParentDraft((current) => ({ ...current, zipcode: event.target.value }))}
-                  />
+                  <input value={parentDraft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
                 </label>
               </div>
             </div>

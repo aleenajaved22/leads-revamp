@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  addressChoices,
   columns,
   emptyCompany,
   filterGroups,
@@ -23,13 +24,18 @@ const createVerticals = ["Commercial", "Industrial", "Office", "Retail", "Health
 const createStates = ["California", "Texas", "Delaware", "Illinois", "Ohio", "Florida", "New York", "Pennsylvania", "Tennessee"];
 const createCities = ["San Francisco", "Los Angeles", "Chicago", "Houston", "Austin", "Celina", "Santa Ana", "Pembroke Pines", "Toledo", "Naperville"];
 
+function withCurrentOption(value: string, options: string[]) {
+  if (!value || options.includes(value)) return options;
+  return [value, ...options];
+}
+
 function emptyCreateDraft() {
   return {
     companyName: "",
     name: "",
     primaryVertical: "",
     address: "",
-    country: "United States",
+    country: "",
     county: "",
     state: "",
     city: "",
@@ -408,6 +414,19 @@ export default function App() {
       }
     };
     reader.readAsText(file);
+  }
+
+  function applyAddress(address: string) {
+    const match = addressChoices(leads).find((item) => item.address === address);
+    setDraft((current) => ({
+      ...current,
+      address,
+      country: match?.country ?? "",
+      county: match?.county ?? "",
+      state: match?.state ?? "",
+      city: match?.city ?? "",
+      zipcode: match?.zipcode ?? "",
+    }));
   }
 
   function createLead() {
@@ -1108,22 +1127,23 @@ export default function App() {
               <div className="create-row-3">
                 <label className="create-span-2">
                   <span>Address <span className="req">*</span></span>
-                  <input
+                  <select
                     value={draft.address}
-                    placeholder="Enter Address"
                     required
-                    onChange={(event) => setDraft({ ...draft, address: event.target.value })}
-                  />
+                    onChange={(event) => applyAddress(event.target.value)}
+                  >
+                    <option value="">Enter Address</option>
+                    {addressChoices(leads).map((option) => (
+                      <option key={option.address} value={option.address}>{option.address}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   <span>Country <span className="req">*</span></span>
                   <span className="create-country">
-                    <img src="/assets/flag-usa.png" alt="" />
-                    <select
-                      value={draft.country}
-                      required
-                      onChange={(event) => setDraft({ ...draft, country: event.target.value })}
-                    >
+                    {draft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
+                    <select value={draft.country} required disabled>
+                      <option value="">Country</option>
                       <option>United States</option>
                     </select>
                   </span>
@@ -1132,35 +1152,22 @@ export default function App() {
               <div className="create-row-3">
                 <label>
                   <span>County <span className="req">*</span></span>
-                  <input
-                    value={draft.county}
-                    placeholder="Enter County"
-                    required
-                    onChange={(event) => setDraft({ ...draft, county: event.target.value })}
-                  />
+                  <input value={draft.county} placeholder="Enter County" required disabled readOnly />
                 </label>
                 <label>
                   <span>State <span className="req">*</span></span>
-                  <select
-                    value={draft.state}
-                    required
-                    onChange={(event) => setDraft({ ...draft, state: event.target.value })}
-                  >
+                  <select value={draft.state} required disabled>
                     <option value="">State</option>
-                    {createStates.map((option) => (
+                    {withCurrentOption(draft.state, createStates).map((option) => (
                       <option key={option}>{option}</option>
                     ))}
                   </select>
                 </label>
                 <label>
                   <span>City <span className="req">*</span></span>
-                  <select
-                    value={draft.city}
-                    required
-                    onChange={(event) => setDraft({ ...draft, city: event.target.value })}
-                  >
+                  <select value={draft.city} required disabled>
                     <option value="">City</option>
-                    {createCities.map((option) => (
+                    {withCurrentOption(draft.city, createCities).map((option) => (
                       <option key={option}>{option}</option>
                     ))}
                   </select>
@@ -1169,12 +1176,7 @@ export default function App() {
               <div className="create-row-3">
                 <label>
                   <span>Zip/Postal Code <span className="req">*</span></span>
-                  <input
-                    value={draft.zipcode}
-                    placeholder="Enter Zip/Postal Code"
-                    required
-                    onChange={(event) => setDraft({ ...draft, zipcode: event.target.value })}
-                  />
+                  <input value={draft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
                 </label>
               </div>
             </div>
