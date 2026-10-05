@@ -7,6 +7,7 @@ import {
   pageSizeOptions,
   parseDate,
   type Assignee,
+  type Column,
   type ColumnKey,
   type Lead,
   type Status,
@@ -15,9 +16,67 @@ import { LeadDetail } from "./LeadDetail";
 
 type SortKey = ColumnKey;
 type SortDir = "asc" | "desc";
-type Menu = "export" | "country" | "profile" | "notifications" | "sort" | "customize" | "pageSize" | null;
+type Menu = "export" | "country" | "profile" | "notifications" | "sort" | "pageSize" | null;
 
 const statuses: Status[] = ["Enriched", "Raw", "Attention Required", "Cleaned", "Approved"];
+
+const showHideOrder: ColumnKey[] = [
+  "name",
+  "address",
+  "country",
+  "county",
+  "state",
+  "city",
+  "zipcode",
+  "buildingStatus",
+  "status",
+  "assignee",
+  "processed",
+  "primaryVertical",
+  "added",
+  "addedBy",
+  "modified",
+  "modifiedBy",
+  "source",
+  "dataType",
+  "tenancy",
+  "landArea",
+  "amenities",
+  "rba",
+  "loadingDocks",
+  "parkingSpaces",
+  "validation",
+];
+
+const rearrangeOrder: ColumnKey[] = [
+  "address",
+  "zipcode",
+  "city",
+  "status",
+  "name",
+  "country",
+  "county",
+  "state",
+  "buildingStatus",
+  "assignee",
+  "processed",
+  "primaryVertical",
+  "added",
+  "addedBy",
+  "modified",
+  "modifiedBy",
+  "source",
+  "dataType",
+  "tenancy",
+  "landArea",
+  "amenities",
+  "rba",
+  "loadingDocks",
+  "parkingSpaces",
+  "validation",
+];
+
+const columnByKey = new Map(columns.map((column) => [column.key, column]));
 
 function Icon({ src, alt = "" }: { src: string; alt?: string }) {
   return <img src={src} alt={alt} />;
@@ -50,12 +109,18 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
-  const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [menu, setMenu] = useState<Menu>(null);
   const [assignFor, setAssignFor] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(rearrangeOrder);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
+  const [draftOrder, setDraftOrder] = useState<ColumnKey[]>(rearrangeOrder);
+  const [draftHidden, setDraftHidden] = useState<Set<ColumnKey>>(new Set());
+  const [columnQuery, setColumnQuery] = useState("");
+  const dragKey = useRef<ColumnKey | null>(null);
   const [route, setRoute] = useState(readLeadRoute);
   const openLeadId = route.id;
   const [draft, setDraft] = useState({ name: "", address: "", state: "", status: "Raw" as Status });
@@ -86,6 +151,7 @@ export default function App() {
         setMenu(null);
         setAssignFor(null);
         setCreateOpen(false);
+        setCustomizeOpen(false);
       }
     }
     document.addEventListener("mousedown", onPointerDown);
@@ -144,7 +210,9 @@ export default function App() {
       ? "0 of 0"
       : `${(safePage - 1) * pageSize + 1}-${Math.min(safePage * pageSize, filtered.length)} of ${filtered.length}`;
 
-  const visibleColumns = columns.filter((column) => !hiddenColumns.has(column.key));
+  const visibleColumns = columnOrder
+    .map((key) => columnByKey.get(key))
+    .filter((column): column is Column => Boolean(column) && !hiddenColumns.has(column.key));
   const allChecked = pageRows.length > 0 && pageRows.every((lead) => selected.has(lead.id));
 
   function toggleMenu(next: Menu) {
@@ -171,11 +239,49 @@ export default function App() {
     });
   }
 
-  function toggleColumn(key: ColumnKey) {
-    setHiddenColumns((current) => {
+  function openCustomize() {
+    setMenu(null);
+    setDraftOrder(columnOrder);
+    setDraftHidden(new Set(hiddenColumns));
+    setColumnQuery("");
+    setCustomizeOpen(true);
+  }
+
+  function toggleDraftColumn(key: ColumnKey) {
+    setDraftHidden((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleHideAll(hide: boolean) {
+    setDraftHidden(hide ? new Set(showHideOrder) : new Set());
+  }
+
+  function resetColumns() {
+    setDraftOrder(rearrangeOrder);
+    setDraftHidden(new Set());
+    setColumnQuery("");
+  }
+
+  function applyColumns() {
+    setColumnOrder(draftOrder);
+    setHiddenColumns(new Set(draftHidden));
+    setCustomizeOpen(false);
+  }
+
+  function moveDraftColumn(overKey: ColumnKey) {
+    const key = dragKey.current;
+    if (!key || key === overKey) return;
+    setDraftOrder((current) => {
+      const next = [...current];
+      const from = next.indexOf(key);
+      const to = next.indexOf(overKey);
+      if (from < 0 || to < 0) return current;
+      next.splice(from, 1);
+      next.splice(to, 0, key);
       return next;
     });
   }
@@ -617,32 +723,10 @@ export default function App() {
                   </div>
                 )}
               </div>
-              <div className="menu-anchor">
-                <button
-                  type="button"
-                  className="btn"
-                  data-menu-trigger
-                  aria-expanded={menu === "customize"}
-                  onClick={() => toggleMenu("customize")}
-                >
-                  <Icon src="/assets/icon-customize.svg" alt="" />
-                  Customize
-                </button>
-                {menu === "customize" && (
-                  <div className="menu menu-scroll" data-menu>
-                    {columns.map((column) => (
-                      <label key={column.key} className="option">
-                        <input
-                          type="checkbox"
-                          checked={!hiddenColumns.has(column.key)}
-                          onChange={() => toggleColumn(column.key)}
-                        />
-                        <span>{column.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <button type="button" className="btn" onClick={openCustomize}>
+                <Icon src="/assets/icon-customize.svg" alt="" />
+                Customize
+              </button>
             </div>
           </div>
 
@@ -697,7 +781,13 @@ export default function App() {
                     {visibleColumns.map((column) => (
                       <td
                         key={column.key}
-                        className={column.key === "address" ? "name-cell sticky-name" : "text-cell"}
+                        className={
+                          column.key === "address"
+                            ? "text-cell sticky-name"
+                            : column.key === "name"
+                              ? "name-cell"
+                              : "text-cell"
+                        }
                       >
                         {column.key === "status" ? (
                           <span className={statusClass(lead.status)}>
@@ -817,6 +907,117 @@ export default function App() {
         </section>
       </div>
       </>
+      )}
+
+      {customizeOpen && (
+        <div className="drawer-backdrop" onClick={() => setCustomizeOpen(false)}>
+          <aside
+            className="drawer drawer-columns"
+            role="dialog"
+            aria-labelledby="column-custom-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="drawer-head">
+              <h2 id="column-custom-title">Column Customization</h2>
+              <button type="button" className="icon-button" aria-label="Close" onClick={() => setCustomizeOpen(false)}>
+                ×
+              </button>
+            </div>
+            <div className="column-custom">
+              <section className="column-custom-pane">
+                <h3>Show/Hide Columns</h3>
+                <label className="column-search">
+                  <Icon src="/assets/icon-search.svg" alt="" />
+                  <input
+                    value={columnQuery}
+                    placeholder="Search a column"
+                    aria-label="Search a column"
+                    onChange={(event) => setColumnQuery(event.target.value)}
+                  />
+                </label>
+                <ul className="column-custom-list">
+                  {showHideOrder
+                    .map((key) => columnByKey.get(key))
+                    .filter((column): column is Column => Boolean(column))
+                    .filter((column) => column.label.toLowerCase().includes(columnQuery.trim().toLowerCase()))
+                    .map((column) => (
+                      <li key={column.key}>
+                        <label className="column-check">
+                          <input
+                            type="checkbox"
+                            checked={!draftHidden.has(column.key)}
+                            onChange={() => toggleDraftColumn(column.key)}
+                          />
+                          <span>{column.label}</span>
+                        </label>
+                      </li>
+                    ))}
+                </ul>
+              </section>
+              <section className="column-custom-pane">
+                <h3>Rearrange Columns</h3>
+                <ul className="column-custom-list">
+                  {draftOrder.map((key, index) => {
+                    const column = columnByKey.get(key);
+                    if (!column) return null;
+                    return (
+                      <li
+                        key={key}
+                        className="column-rank"
+                        draggable
+                        onDragStart={() => {
+                          dragKey.current = key;
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          moveDraftColumn(key);
+                        }}
+                        onDragEnd={() => {
+                          dragKey.current = null;
+                        }}
+                      >
+                        <span className="column-rank-index">{index + 1}.</span>
+                        <span className="column-rank-label">{column.label}</span>
+                        <span className="column-drag" aria-hidden="true">
+                          <svg viewBox="0 0 16 16" width="16" height="16">
+                            <circle cx="6" cy="4" r="1" fill="currentColor" />
+                            <circle cx="10" cy="4" r="1" fill="currentColor" />
+                            <circle cx="6" cy="8" r="1" fill="currentColor" />
+                            <circle cx="10" cy="8" r="1" fill="currentColor" />
+                            <circle cx="6" cy="12" r="1" fill="currentColor" />
+                            <circle cx="10" cy="12" r="1" fill="currentColor" />
+                          </svg>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            </div>
+            <div className="column-custom-footer">
+              <label className="column-hide-all">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={draftHidden.size === showHideOrder.length}
+                  onChange={(event) => toggleHideAll(event.target.checked)}
+                />
+                Hide all Columns
+              </label>
+              <div className="column-custom-actions">
+                <button type="button" className="btn" onClick={() => setCustomizeOpen(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-primary" onClick={resetColumns}>
+                  Reset
+                </button>
+                <button type="button" className="btn btn-primary" onClick={applyColumns}>
+                  Apply to Columns
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
       )}
 
       {createOpen && (

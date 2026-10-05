@@ -1260,6 +1260,7 @@ export function LeadDetail({
       name: newCompany.name.trim() || "Untitled company",
       floorRange: newCompany.floor.trim(),
       suiteRange: newCompany.suite.trim(),
+      status: "Cleaned",
     };
     onChange(stamp({ ...lead, companies: [...lead.companies, created] }));
     setSelectedId(created.id);
