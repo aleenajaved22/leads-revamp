@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   columns,
+  emptyCompany,
   filterGroups,
   initialLeads,
   officers,
@@ -18,7 +19,30 @@ type SortKey = ColumnKey;
 type SortDir = "asc" | "desc";
 type Menu = "export" | "country" | "profile" | "notifications" | "sort" | "pageSize" | null;
 
-const statuses: Status[] = ["Enriched", "Raw", "Attention Required", "Cleaned", "Approved"];
+const createVerticals = ["Commercial", "Industrial", "Office", "Retail", "Healthcare", "Mixed Use"];
+const createStates = ["California", "Texas", "Delaware", "Illinois", "Ohio", "Florida", "New York", "Pennsylvania", "Tennessee"];
+const createCities = ["San Francisco", "Los Angeles", "Chicago", "Houston", "Austin", "Celina", "Santa Ana", "Pembroke Pines", "Toledo", "Naperville"];
+const createTenancy = [
+  ["Single", "Single-Tenant"],
+  ["Multi", "Multi-Tenant"],
+] as const;
+
+function emptyCreateDraft() {
+  return {
+    companyName: "",
+    name: "",
+    primaryVertical: "",
+    address: "",
+    country: "United States",
+    county: "",
+    state: "",
+    city: "",
+    zipcode: "",
+    tenancy: "",
+    landArea: "",
+    status: "Raw" as Status,
+  };
+}
 
 const showHideOrder: ColumnKey[] = [
   "name",
@@ -50,29 +74,29 @@ const showHideOrder: ColumnKey[] = [
 
 const rearrangeOrder: ColumnKey[] = [
   "address",
-  "zipcode",
-  "city",
-  "status",
   "name",
+  "status",
+  "primaryVertical",
   "country",
   "county",
   "state",
+  "city",
+  "zipcode",
+  "tenancy",
+  "landArea",
+  "amenities",
+  "parkingSpaces",
+  "loadingDocks",
+  "rba",
   "buildingStatus",
   "assignee",
   "processed",
-  "primaryVertical",
   "added",
   "addedBy",
   "modified",
   "modifiedBy",
   "source",
   "dataType",
-  "tenancy",
-  "landArea",
-  "amenities",
-  "rba",
-  "loadingDocks",
-  "parkingSpaces",
   "validation",
 ];
 
@@ -123,7 +147,7 @@ export default function App() {
   const dragKey = useRef<ColumnKey | null>(null);
   const [route, setRoute] = useState(readLeadRoute);
   const openLeadId = route.id;
-  const [draft, setDraft] = useState({ name: "", address: "", state: "", status: "Raw" as Status });
+  const [draft, setDraft] = useState(emptyCreateDraft);
   const fileRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -393,39 +417,58 @@ export default function App() {
   }
 
   function createLead() {
-    if (!draft.name.trim()) return;
+    const companyName = draft.companyName.trim();
+    const required = [
+      companyName,
+      draft.primaryVertical,
+      draft.address.trim(),
+      draft.country,
+      draft.county.trim(),
+      draft.state,
+      draft.city,
+      draft.zipcode.trim(),
+    ];
+    if (required.some((value) => !value)) return;
+    const propertyName = draft.name.trim() || companyName;
     const lead: Lead = {
       id: `new-${Date.now()}`,
-      name: draft.name.trim(),
-      zipcode: "N/A",
-      city: "N/A",
-      status: draft.status,
-      address: draft.address.trim() || "N/A",
+      name: propertyName,
+      zipcode: draft.zipcode.trim(),
+      city: draft.city,
+      status: "Raw",
+      address: draft.address.trim(),
       country: "US",
-      county: "N/A",
-      state: draft.state.trim() || "N/A",
+      county: draft.county.trim(),
+      state: draft.state,
       buildingStatus: "Existing",
       assignee: null,
       processed: "N/A",
-      primaryVertical: "Commercial",
+      primaryVertical: draft.primaryVertical,
       added: new Date().toLocaleDateString("en-GB"),
       addedBy: "Aleena",
       modified: "N/A",
       modifiedBy: "N/A",
       source: "Manual",
       dataType: "Csv",
-      tenancy: "Single",
-      landArea: "N/A",
+      tenancy: draft.tenancy || "N/A",
+      landArea: draft.landArea.trim() || "N/A",
       amenities: "N/A",
       rba: "N/A",
       loadingDocks: "N/A",
       parkingSpaces: "N/A",
       validation: "Validation In Process",
-      companies: [],
+      companies: [
+        {
+          ...emptyCompany(),
+          id: `c-${Date.now()}`,
+          name: companyName,
+          status: "Cleaned",
+        },
+      ],
     };
     setLeads((current) => [lead, ...current]);
     setPage(1);
-    setDraft({ name: "", address: "", state: "", status: "Raw" });
+    setDraft(emptyCreateDraft());
     setCreateOpen(false);
   }
 
@@ -781,13 +824,7 @@ export default function App() {
                     {visibleColumns.map((column) => (
                       <td
                         key={column.key}
-                        className={
-                          column.key === "address"
-                            ? "text-cell sticky-name"
-                            : column.key === "name"
-                              ? "name-cell"
-                              : "text-cell"
-                        }
+                        className={column.key === "address" ? "name-cell sticky-name" : "text-cell"}
                       >
                         {column.key === "status" ? (
                           <span className={statusClass(lead.status)}>
@@ -1023,7 +1060,7 @@ export default function App() {
       {createOpen && (
         <div className="modal-backdrop" onClick={() => setCreateOpen(false)}>
           <form
-            className="modal"
+            className="modal modal-create"
             onClick={(event) => event.stopPropagation()}
             onSubmit={(event) => {
               event.preventDefault();
@@ -1031,39 +1068,128 @@ export default function App() {
             }}
           >
             <h2>Create a Lead</h2>
-            <label>
-              Property name
-              <input
-                value={draft.name}
-                required
-                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              />
-            </label>
-            <label>
-              Address
-              <input
-                value={draft.address}
-                onChange={(event) => setDraft({ ...draft, address: event.target.value })}
-              />
-            </label>
-            <label>
-              State
-              <input
-                value={draft.state}
-                onChange={(event) => setDraft({ ...draft, state: event.target.value })}
-              />
-            </label>
-            <label>
-              Status
-              <select
-                value={draft.status}
-                onChange={(event) => setDraft({ ...draft, status: event.target.value as Status })}
-              >
-                {statuses.map((status) => (
-                  <option key={status}>{status}</option>
-                ))}
-              </select>
-            </label>
+            <div className="create-fields">
+              <label className="create-span">
+                <span>Company Name <span className="req">*</span></span>
+                <input
+                  value={draft.companyName}
+                  placeholder="Company Name"
+                  required
+                  onChange={(event) => setDraft({ ...draft, companyName: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Property Name</span>
+                <input
+                  value={draft.name}
+                  placeholder="Enter Property Name"
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Primary Vertical <span className="req">*</span></span>
+                <select
+                  value={draft.primaryVertical}
+                  required
+                  onChange={(event) => setDraft({ ...draft, primaryVertical: event.target.value })}
+                >
+                  <option value="">Primary Vertical</option>
+                  {createVerticals.map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Address <span className="req">*</span></span>
+                <input
+                  value={draft.address}
+                  placeholder="Enter Address"
+                  required
+                  onChange={(event) => setDraft({ ...draft, address: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Country <span className="req">*</span></span>
+                <span className="create-country">
+                  <img src="/assets/flag-usa.png" alt="" />
+                  <select
+                    value={draft.country}
+                    required
+                    onChange={(event) => setDraft({ ...draft, country: event.target.value })}
+                  >
+                    <option>United States</option>
+                  </select>
+                </span>
+              </label>
+              <div className="create-row-3">
+                <label>
+                  <span>County <span className="req">*</span></span>
+                  <input
+                    value={draft.county}
+                    placeholder="Enter County"
+                    required
+                    onChange={(event) => setDraft({ ...draft, county: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>State <span className="req">*</span></span>
+                  <select
+                    value={draft.state}
+                    required
+                    onChange={(event) => setDraft({ ...draft, state: event.target.value })}
+                  >
+                    <option value="">State</option>
+                    {createStates.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>City <span className="req">*</span></span>
+                  <select
+                    value={draft.city}
+                    required
+                    onChange={(event) => setDraft({ ...draft, city: event.target.value })}
+                  >
+                    <option value="">City</option>
+                    {createCities.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="create-row-3">
+                <label>
+                  <span>Zipcode <span className="req">*</span></span>
+                  <input
+                    value={draft.zipcode}
+                    placeholder="Enter Zipcode"
+                    required
+                    onChange={(event) => setDraft({ ...draft, zipcode: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Tenancy</span>
+                  <select
+                    value={draft.tenancy}
+                    onChange={(event) => setDraft({ ...draft, tenancy: event.target.value })}
+                  >
+                    <option value="">Tenancy</option>
+                    {createTenancy.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Land Area</span>
+                  <input
+                    value={draft.landArea}
+                    placeholder="Enter Land Area"
+                    onChange={(event) => setDraft({ ...draft, landArea: event.target.value })}
+                  />
+                </label>
+              </div>
+            </div>
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setCreateOpen(false)}>
                 Cancel

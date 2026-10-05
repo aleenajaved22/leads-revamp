@@ -758,9 +758,61 @@ input[type="checkbox"]:checked::after {
   outline: none;
 }
 
+.modal select {
+  appearance: none;
+  padding-right: 36px;
+  background-color: #fff;
+  background-image: url("/assets/chevron-down-sm.svg");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px 14px;
+  cursor: pointer;
+}
+
 .modal input:focus, .modal select:focus, .search:focus-within { border-color: #146dff; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 4px; }
+
+.modal-create {
+  width: min(880px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.create-fields {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px 20px;
+}
+
+.create-span { grid-column: 1 / -1; }
+
+.create-row-3 {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr 1fr;
+  gap: 16px 20px;
+}
+
+.req { color: #e11d2e; }
+
+.create-country { position: relative; display: block; }
+
+.create-country img {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.create-country select { width: 100%; padding-left: 38px; }
+
+.modal-create select { width: 100%; }
 
 tbody tr.is-open td { background: #eef5ff; }
 tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
