@@ -1090,8 +1090,9 @@ export default function App() {
               createLead();
             }}
           >
-            <h2>Create a Lead</h2>
-            <div className="create-fields">
+            <div className="modal-create-scroll">
+              <h2>Create a Lead</h2>
+              <div className="create-fields">
               <label>
                 <span>Company Name <span className="req">*</span></span>
                 <input
@@ -1173,8 +1174,9 @@ export default function App() {
                 <span>Zip/Postal Code <span className="req">*</span></span>
                 <input value={draft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
               </label>
+              </div>
             </div>
-            <div className="modal-actions">
+            <div className="modal-actions modal-create-footer">
               <button type="button" className="btn" onClick={() => setCreateOpen(false)}>
                 Cancel
               </button>

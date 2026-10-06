@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PropertyMap } from "./PropertyMap";
 import {
@@ -334,7 +334,7 @@ const contactFields: {
   { key: "country", label: "Country", placeholder: "Select Country", options: propertyCountries },
   { key: "state", label: "State", placeholder: "Select State", options: propertyStates },
   { key: "city", label: "City", placeholder: "Select City", options: propertyCities },
-  { key: "zipcode", label: "Zipcode", placeholder: "Enter Zipcode" },
+  { key: "zipcode", label: "Zip / Postal Code", placeholder: "Enter Zip / Postal Code" },
 ];
 
 const workflow = [
@@ -1096,10 +1096,12 @@ function InlineField({
           .join(" ")
       }
     >
-      <span className="kv-label" hidden={hideLabel}>
-        <span className="kv-label-text">{label}</span>
-        {labelHint ? <LabelInfoHint text={labelHint} /> : null}
-      </span>
+      {!hideLabel && (
+        <span className="kv-label">
+          <span className="kv-label-text">{label}</span>
+          {labelHint ? <LabelInfoHint text={labelHint} /> : null}
+        </span>
+      )}
       <div className="kv-value">
       {editing && choices ? (
         <div className="inline-field-editor">
@@ -1385,6 +1387,8 @@ export function LeadDetail({
   const pendingCompanyTabRef = useRef<string | null>(null);
   const pendingErrorAnchorRef = useRef<string | null>(null);
   const pendingScrollTimerRef = useRef<number | null>(null);
+  const companyEditBaselineRef = useRef<Company | null>(null);
+  const [companyBaselineVersion, setCompanyBaselineVersion] = useState(0);
 
   useEffect(() => {
     setSelectedId(lead.companies[0]?.id ?? "");
@@ -1398,6 +1402,12 @@ export function LeadDetail({
     setActiveErrorId(null);
     setCreateParentOpen(false);
   }, [lead.id]);
+
+  useEffect(() => {
+    const company = lead.companies.find((item) => item.id === selectedId);
+    companyEditBaselineRef.current = company ? structuredClone(company) : null;
+    setCompanyBaselineVersion((version) => version + 1);
+  }, [selectedId]);
 
   useEffect(() => {
     if (!propertyMenuOpen) return;
@@ -1426,6 +1436,11 @@ export function LeadDetail({
     : lead.companies;
 
   const selected = lead.companies.find((company) => company.id === selectedId) ?? lead.companies[0];
+  const companyHasEdits = useMemo(() => {
+    const baseline = companyEditBaselineRef.current;
+    if (!selected || !baseline || selected.id !== baseline.id) return false;
+    return JSON.stringify(selected) !== JSON.stringify(baseline);
+  }, [selected, lead, companyBaselineVersion]);
   const { floorText } = selected ? occupancyParts(selected) : { floorText: "" };
   const parentCompany = selected?.parentCompany?.trim() ?? "";
   const parentPropertyId = parentCompany
@@ -1541,6 +1556,22 @@ export function LeadDetail({
     if (Math.abs(next - root.scrollTop) < 1) return;
     pendingCompanyTabRef.current = sectionId;
     root.scrollTo({ top: next, behavior: "smooth" });
+  }
+
+  function cancelCompanyEdits() {
+    const baseline = companyEditBaselineRef.current;
+    if (!baseline) return;
+    onChange({
+      ...lead,
+      companies: lead.companies.map((company) => (company.id === baseline.id ? baseline : company)),
+    });
+  }
+
+  function confirmCompanyEdits() {
+    const company = lead.companies.find((item) => item.id === selectedId);
+    if (!company) return;
+    companyEditBaselineRef.current = structuredClone(company);
+    setCompanyBaselineVersion((version) => version + 1);
   }
 
   function updateCompanyField(key: keyof Company, value: string) {
@@ -1941,16 +1972,16 @@ export function LeadDetail({
                 emptyLabel="Enter Address"
                 onCommit={(value) => updateLead({ address: value })}
               />
-              <InlineField
-                label="Tenancy"
-                value={tenancyValue}
-                emptyLabel="Select Tenancy"
-                options={["Single-Tenant", "Multi-Tenant"]}
-                onCommit={(value) => updateLead({ tenancy: value.replace(/-Tenant$/i, "") })}
-              />
             </div>
             {propertyFactsExpanded && (
               <div className="property-facts-more">
+                <InlineField
+                  label="Tenancy"
+                  value={tenancyValue}
+                  emptyLabel="Select Tenancy"
+                  options={["Single-Tenant", "Multi-Tenant"]}
+                  onCommit={(value) => updateLead({ tenancy: value.replace(/-Tenant$/i, "") })}
+                />
                 <InlineField
                   label="Country"
                   value={countryLabel(lead.country)}
@@ -2397,9 +2428,9 @@ export function LeadDetail({
                             </div>
                             <div className="contact-card-row contact-card-row-2">
                               <InlineField
-                                label="Zipcode"
+                                label="Zip / Postal Code"
                                 value={contact.zipcode}
-                                emptyLabel="Enter Zipcode"
+                                emptyLabel="Enter Zip / Postal Code"
                                 onCommit={(value) => updateContact(contact.id, { zipcode: value })}
                               />
                             </div>
@@ -2428,6 +2459,17 @@ export function LeadDetail({
             )}
           </main>
       </div>
+
+      {selected && (
+        <div className="company-detail-footer">
+          <button type="button" className="btn" onClick={cancelCompanyEdits}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary" onClick={confirmCompanyEdits} disabled={!companyHasEdits}>
+            Update
+          </button>
+        </div>
+      )}
 
       {leadConfirm && (
         <div className="modal-backdrop" onClick={() => setLeadConfirm(null)}>
@@ -2702,21 +2744,22 @@ export function LeadDetail({
               createParentLead();
             }}
           >
-            <div className="modal-create-header">
-              <div className="modal-create-header-text">
-                <h2>Create a Company</h2>
-                <p className="modal-create-helper">Enter the details below to create a new company</p>
+            <div className="modal-create-scroll">
+              <div className="modal-create-header">
+                <div className="modal-create-header-text">
+                  <h2>Create a Company</h2>
+                  <p className="modal-create-helper">Enter the details below to create a new company</p>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button modal-create-close"
+                  aria-label="Close"
+                  onClick={() => setCreateParentOpen(false)}
+                >
+                  ×
+                </button>
               </div>
-              <button
-                type="button"
-                className="icon-button modal-create-close"
-                aria-label="Close"
-                onClick={() => setCreateParentOpen(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="create-fields">
+              <div className="create-fields">
               <label>
                 <span>Company Name <span className="req">*</span></span>
                 <input
@@ -2800,13 +2843,14 @@ export function LeadDetail({
                 <span>Zip/Postal Code <span className="req">*</span></span>
                 <input value={parentDraft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
               </label>
+              </div>
             </div>
-            <div className="modal-actions">
+            <div className="modal-actions modal-create-footer">
               <button type="button" className="btn" onClick={() => setCreateParentOpen(false)}>
                 Cancel
               </button>
               <button type="submit" className="btn btn-primary">
-                Create a Lead
+                Update
               </button>
             </div>
           </form>

@@ -781,16 +781,49 @@ input[type="checkbox"]:checked::after {
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 4px; }
 
-.modal-create .modal-actions {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #e6e6e7;
-}
-
 .modal-create {
   width: min(880px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
+  gap: 0;
+  overflow: hidden;
+}
+
+.modal-create-scroll {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-create .modal-actions,
+.modal-create-footer {
+  flex: none;
+  margin-top: 0;
+  padding-top: 16px;
+  border-top: 1px solid #e6e6e7;
+  background: #fff;
+}
+
+.company-detail-footer .btn {
+  height: 32px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.company-detail-footer {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 32px;
+  border-top: 1px solid rgb(230 230 231 / 50%);
+  background: rgb(255 255 255 / 50%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 -4px 12px rgb(16 24 40 / 6%);
 }
 
 .modal-create-header {
