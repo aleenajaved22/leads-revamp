@@ -1092,15 +1092,28 @@ export default function App() {
           >
             <h2>Create a Lead</h2>
             <div className="create-fields">
-              <div className="create-row-3">
-                <label>
-                  <span>Company Name <span className="req">*</span></span>
-                  <input
-                    value={draft.companyName}
-                    placeholder="Company Name"
+              <label>
+                <span>Company Name <span className="req">*</span></span>
+                <input
+                  value={draft.companyName}
+                  placeholder="Company Name"
+                  required
+                  onChange={(event) => setDraft({ ...draft, companyName: event.target.value })}
+                />
+              </label>
+              <div className="create-fields-row">
+                <label className="create-field-span-2">
+                  <span>Property Address <span className="req">*</span></span>
+                  <select
+                    value={draft.address}
                     required
-                    onChange={(event) => setDraft({ ...draft, companyName: event.target.value })}
-                  />
+                    onChange={(event) => applyAddress(event.target.value)}
+                  >
+                    <option value="">Enter Property Address</option>
+                    {addressChoices(leads).map((option) => (
+                      <option key={option.address} value={option.address}>{option.address}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   <span>Property Name</span>
@@ -1110,75 +1123,56 @@ export default function App() {
                     onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                   />
                 </label>
-                <label>
-                  <span>Primary Vertical <span className="req">*</span></span>
-                  <select
-                    value={draft.primaryVertical}
-                    required
-                    onChange={(event) => setDraft({ ...draft, primaryVertical: event.target.value })}
-                  >
-                    <option value="">Primary Vertical</option>
-                    {createVerticals.map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
               </div>
-              <div className="create-row-3">
-                <label className="create-span-2">
-                  <span>Address <span className="req">*</span></span>
-                  <select
-                    value={draft.address}
-                    required
-                    onChange={(event) => applyAddress(event.target.value)}
-                  >
-                    <option value="">Enter Address</option>
-                    {addressChoices(leads).map((option) => (
-                      <option key={option.address} value={option.address}>{option.address}</option>
-                    ))}
+              <label>
+                <span>Primary Vertical <span className="req">*</span></span>
+                <select
+                  value={draft.primaryVertical}
+                  required
+                  onChange={(event) => setDraft({ ...draft, primaryVertical: event.target.value })}
+                >
+                  <option value="">Primary Vertical</option>
+                  {createVerticals.map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Country <span className="req">*</span></span>
+                <span className="create-country">
+                  {draft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
+                  <select value={draft.country} required disabled>
+                    <option value="">Country</option>
+                    <option>United States</option>
                   </select>
-                </label>
-                <label>
-                  <span>Country <span className="req">*</span></span>
-                  <span className="create-country">
-                    {draft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
-                    <select value={draft.country} required disabled>
-                      <option value="">Country</option>
-                      <option>United States</option>
-                    </select>
-                  </span>
-                </label>
-              </div>
-              <div className="create-row-3">
-                <label>
-                  <span>County <span className="req">*</span></span>
-                  <input value={draft.county} placeholder="Enter County" required disabled readOnly />
-                </label>
-                <label>
-                  <span>State <span className="req">*</span></span>
-                  <select value={draft.state} required disabled>
-                    <option value="">State</option>
-                    {withCurrentOption(draft.state, createStates).map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>City <span className="req">*</span></span>
-                  <select value={draft.city} required disabled>
-                    <option value="">City</option>
-                    {withCurrentOption(draft.city, createCities).map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="create-row-3">
-                <label>
-                  <span>Zip/Postal Code <span className="req">*</span></span>
-                  <input value={draft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
-                </label>
-              </div>
+                </span>
+              </label>
+              <label>
+                <span>County <span className="req">*</span></span>
+                <input value={draft.county} placeholder="Enter County" required disabled readOnly />
+              </label>
+              <label>
+                <span>State <span className="req">*</span></span>
+                <select value={draft.state} required disabled>
+                  <option value="">State</option>
+                  {withCurrentOption(draft.state, createStates).map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>City <span className="req">*</span></span>
+                <select value={draft.city} required disabled>
+                  <option value="">City</option>
+                  {withCurrentOption(draft.city, createCities).map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Zip/Postal Code <span className="req">*</span></span>
+                <input value={draft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
+              </label>
             </div>
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setCreateOpen(false)}>

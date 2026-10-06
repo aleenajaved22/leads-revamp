@@ -40,9 +40,18 @@ const occupancyFields: { key: keyof Company; label: string; placeholder?: string
   { key: "occupiedArea", label: "Occupied Area (sq ft)", placeholder: "Enter Occupied Area" },
 ];
 
-const occupancyDateFields: { key: "effectiveDate" | "tillDate"; label: string }[] = [
-  { key: "effectiveDate", label: "Company at Property - Effective Date" },
-  { key: "tillDate", label: "Company at Property - Till Date" },
+const occupancyDateFields: { key: "effectiveDate" | "tillDate"; label: string; labelHint: string }[] = [
+  {
+    key: "effectiveDate",
+    label: "Company at Property - Effective Date",
+    labelHint: "The company's association with this property becomes active on the effective date you select",
+  },
+  {
+    key: "tillDate",
+    label: "Company at Property - Till Date",
+    labelHint:
+      "The company's association with this property stays active through the end date you select and becomes inactive after it",
+  },
 ];
 
 const propertyAffiliationOptions = ["Managed", "Owned", "Regional Office", "Shared", "Tenant", "Headquarters"];
@@ -901,6 +910,112 @@ function SelectField({
   );
 }
 
+function LabelInfoHint({ text }: { text: string }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+
+  function updatePosition() {
+    const anchor = triggerRef.current;
+    const tooltip = tooltipRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const width = Math.min(tooltip?.offsetWidth ?? 280, window.innerWidth - 24);
+    const left = Math.min(Math.max(12, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - 12);
+    setPosition({ top: rect.bottom + 8, left });
+  }
+
+  function cancelClose() {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }
+
+  function scheduleClose() {
+    cancelClose();
+    closeTimerRef.current = window.setTimeout(() => setOpen(false), 120);
+  }
+
+  function show() {
+    cancelClose();
+    setOpen(true);
+    requestAnimationFrame(updatePosition);
+  }
+
+  useEffect(() => () => cancelClose(), []);
+
+  useEffect(() => {
+    if (open) requestAnimationFrame(updatePosition);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onLayout() {
+      updatePosition();
+    }
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (triggerRef.current?.contains(target) || tooltipRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("scroll", onLayout, true);
+    window.addEventListener("resize", onLayout);
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("scroll", onLayout, true);
+      window.removeEventListener("resize", onLayout);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const tooltip =
+    open &&
+    createPortal(
+      <div
+        ref={tooltipRef}
+        className="kv-label-hint-tooltip"
+        style={{ top: position.top, left: position.left }}
+        role="tooltip"
+        onMouseEnter={cancelClose}
+        onMouseLeave={scheduleClose}
+      >
+        {text}
+      </div>,
+      document.body,
+    );
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="kv-label-hint-trigger"
+        aria-label="More information"
+        onMouseEnter={show}
+        onMouseLeave={scheduleClose}
+        onFocus={show}
+        onBlur={scheduleClose}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M8 7.1V11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          <circle cx="8" cy="5.15" r="0.75" fill="currentColor" />
+        </svg>
+      </button>
+      {tooltip}
+    </>
+  );
+}
+
 function InlineField({
   label,
   value,
@@ -914,6 +1029,7 @@ function InlineField({
   anchorId,
   tone,
   inputType = "text",
+  labelHint,
 }: {
   label: string;
   value: string;
@@ -927,6 +1043,7 @@ function InlineField({
   anchorId?: string;
   tone?: "parent";
   inputType?: "text" | "date";
+  labelHint?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -979,7 +1096,10 @@ function InlineField({
           .join(" ")
       }
     >
-      <span className="kv-label" hidden={hideLabel}>{label}</span>
+      <span className="kv-label" hidden={hideLabel}>
+        <span className="kv-label-text">{label}</span>
+        {labelHint ? <LabelInfoHint text={labelHint} /> : null}
+      </span>
       <div className="kv-value">
       {editing && choices ? (
         <div className="inline-field-editor">
@@ -2119,6 +2239,7 @@ export function LeadDetail({
                         <InlineField
                           key={field.key}
                           label={field.label}
+                          labelHint={field.labelHint}
                           value={selected[field.key]}
                           emptyLabel="MM/DD/YYYY"
                           inputType="date"
@@ -2581,17 +2702,43 @@ export function LeadDetail({
               createParentLead();
             }}
           >
-            <h2>Create a Lead</h2>
+            <div className="modal-create-header">
+              <div className="modal-create-header-text">
+                <h2>Create a Company</h2>
+                <p className="modal-create-helper">Enter the details below to create a new company</p>
+              </div>
+              <button
+                type="button"
+                className="icon-button modal-create-close"
+                aria-label="Close"
+                onClick={() => setCreateParentOpen(false)}
+              >
+                ×
+              </button>
+            </div>
             <div className="create-fields">
-              <div className="create-row-3">
-                <label>
-                  <span>Company Name <span className="req">*</span></span>
-                  <input
-                    value={parentDraft.companyName}
-                    placeholder="Company Name"
+              <label>
+                <span>Company Name <span className="req">*</span></span>
+                <input
+                  value={parentDraft.companyName}
+                  placeholder="Company Name"
+                  required
+                  onChange={(event) => setParentDraft((current) => ({ ...current, companyName: event.target.value }))}
+                />
+              </label>
+              <div className="create-fields-row">
+                <label className="create-field-span-2">
+                  <span>Property Address <span className="req">*</span></span>
+                  <select
+                    value={parentDraft.address}
                     required
-                    onChange={(event) => setParentDraft((current) => ({ ...current, companyName: event.target.value }))}
-                  />
+                    onChange={(event) => applyParentAddress(event.target.value)}
+                  >
+                    <option value="">Enter Property Address</option>
+                    {addressChoices(leads).map((option) => (
+                      <option key={option.address} value={option.address}>{option.address}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   <span>Property Name</span>
@@ -2601,77 +2748,58 @@ export function LeadDetail({
                     onChange={(event) => setParentDraft((current) => ({ ...current, name: event.target.value }))}
                   />
                 </label>
-                <label>
-                  <span>Primary Vertical <span className="req">*</span></span>
-                  <select
-                    value={parentDraft.primaryVertical}
-                    required
-                    onChange={(event) => setParentDraft((current) => ({ ...current, primaryVertical: event.target.value }))}
-                  >
-                    <option value="">Primary Vertical</option>
-                    {propertyPrimaryVerticals.map((option) => (
+              </div>
+              <label>
+                <span>Primary Vertical <span className="req">*</span></span>
+                <select
+                  value={parentDraft.primaryVertical}
+                  required
+                  onChange={(event) => setParentDraft((current) => ({ ...current, primaryVertical: event.target.value }))}
+                >
+                  <option value="">Primary Vertical</option>
+                  {propertyPrimaryVerticals.map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Country <span className="req">*</span></span>
+                <span className="create-country">
+                  {parentDraft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
+                  <select value={parentDraft.country} required disabled>
+                    <option value="">Country</option>
+                    {propertyCountries.map((option) => (
                       <option key={option}>{option}</option>
                     ))}
                   </select>
-                </label>
-              </div>
-              <div className="create-row-3">
-                <label className="create-span-2">
-                  <span>Address <span className="req">*</span></span>
-                  <select
-                    value={parentDraft.address}
-                    required
-                    onChange={(event) => applyParentAddress(event.target.value)}
-                  >
-                    <option value="">Enter Address</option>
-                    {addressChoices(leads).map((option) => (
-                      <option key={option.address} value={option.address}>{option.address}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Country <span className="req">*</span></span>
-                  <span className="create-country">
-                    {parentDraft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
-                    <select value={parentDraft.country} required disabled>
-                      <option value="">Country</option>
-                      {propertyCountries.map((option) => (
-                        <option key={option}>{option}</option>
-                      ))}
-                    </select>
-                  </span>
-                </label>
-              </div>
-              <div className="create-row-3">
-                <label>
-                  <span>County <span className="req">*</span></span>
-                  <input value={parentDraft.county} placeholder="Enter County" required disabled readOnly />
-                </label>
-                <label>
-                  <span>State <span className="req">*</span></span>
-                  <select value={parentDraft.state} required disabled>
-                    <option value="">State</option>
-                    {withCurrentOption(parentDraft.state, propertyStates).map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>City <span className="req">*</span></span>
-                  <select value={parentDraft.city} required disabled>
-                    <option value="">City</option>
-                    {withCurrentOption(parentDraft.city, propertyCities).map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="create-row-3">
-                <label>
-                  <span>Zip/Postal Code <span className="req">*</span></span>
-                  <input value={parentDraft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
-                </label>
-              </div>
+                </span>
+              </label>
+              <label>
+                <span>County <span className="req">*</span></span>
+                <input value={parentDraft.county} placeholder="Enter County" required disabled readOnly />
+              </label>
+              <label>
+                <span>State <span className="req">*</span></span>
+                <select value={parentDraft.state} required disabled>
+                  <option value="">State</option>
+                  {withCurrentOption(parentDraft.state, propertyStates).map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>City <span className="req">*</span></span>
+                <select value={parentDraft.city} required disabled>
+                  <option value="">City</option>
+                  {withCurrentOption(parentDraft.city, propertyCities).map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Zip/Postal Code <span className="req">*</span></span>
+                <input value={parentDraft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
+              </label>
             </div>
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setCreateParentOpen(false)}>
