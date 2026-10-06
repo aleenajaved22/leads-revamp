@@ -1,4 +1,13 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   DATE_PLACEHOLDER,
@@ -7,6 +16,11 @@ import {
   isoToAppDate,
   normalizeAppDateInput,
 } from "./dates";
+import {
+  SearchableSelect,
+  SearchableSelectControl,
+  filterOptionsBySearch,
+} from "./SearchableSelect";
 import { PropertyMap } from "./PropertyMap";
 import { ContactFormFields } from "./ContactFormFields";
 import { ContactOwnerAffiliationChips } from "./OwnerAffiliationField";
@@ -132,6 +146,38 @@ function parentCompanyChoices(leads: Lead[], currentCompanyId: string) {
   }
   options.sort((a, b) => a.name.localeCompare(b.name));
   return options;
+}
+
+type ParentCompanyTarget =
+  | { kind: "same-lead"; companyId: string }
+  | { kind: "external"; leadId: string };
+
+function resolveParentCompanyTarget(lead: Lead, leads: Lead[], parentCompanyName: string): ParentCompanyTarget | null {
+  const name = parentCompanyName.trim();
+  if (!name) return null;
+  const lower = name.toLowerCase();
+
+  const sameLeadCompany = lead.companies.find((company) => company.name.trim().toLowerCase() === lower);
+  if (sameLeadCompany) {
+    return { kind: "same-lead", companyId: sameLeadCompany.id };
+  }
+
+  const externalByCompany = leads.find(
+    (item) =>
+      item.id !== lead.id && item.companies.some((company) => company.name.trim().toLowerCase() === lower),
+  );
+  if (externalByCompany) {
+    return { kind: "external", leadId: externalByCompany.id };
+  }
+
+  const externalByProperty = leads.find(
+    (item) => item.id !== lead.id && item.name.trim().toLowerCase().startsWith(lower),
+  );
+  if (externalByProperty) {
+    return { kind: "external", leadId: externalByProperty.id };
+  }
+
+  return null;
 }
 
 const companyChangeKeys: (keyof Company)[] = [
@@ -437,11 +483,36 @@ function AddressHeading({
   onSelect: (choice: AddressChoice) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const display = value.trim() && value !== "N/A" ? value : "Address unavailable";
   const current = display === "Address unavailable" ? "" : display;
+
+  const filteredOptions = useMemo(() => {
+    const addresses = options.map((option) => option.address);
+    const filteredAddresses = filterOptionsBySearch(addresses, searchQuery, current);
+    return options.filter((option) => filteredAddresses.includes(option.address));
+  }, [options, searchQuery, current]);
+
+  function openMenu() {
+    setSearchQuery(current);
+    setOpen(true);
+  }
+
+  function closeMenu() {
+    setOpen(false);
+    setSearchQuery("");
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const input = inputRef.current;
+    input?.focus();
+    input?.select();
+  }, [open]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -465,10 +536,10 @@ function AddressHeading({
     function onPointerDown(event: MouseEvent) {
       const target = event.target as Node;
       if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      setOpen(false);
+      closeMenu();
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") closeMenu();
     }
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -495,33 +566,55 @@ function AddressHeading({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-invalid={invalid || undefined}
-        onClick={() => setOpen((next) => !next)}
+        onClick={() => (open ? closeMenu() : openMenu())}
       >
         {display}
       </button>
       {open &&
         createPortal(
-          <div ref={menuRef} className="address-heading-menu" style={menuStyle} role="listbox" aria-label="Property addresses">
-            <ul>
-              {options.map((option) => {
-                const selected = option.address === current;
-                return (
-                  <li key={option.address}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      className={selected ? "is-selected" : undefined}
-                      onClick={() => {
-                        onSelect(option);
-                        setOpen(false);
-                      }}
-                    >
-                      {option.address}
-                    </button>
-                  </li>
-                );
-              })}
+          <div ref={menuRef} className="address-heading-menu" style={menuStyle} aria-label="Property addresses">
+            <div className="address-heading-menu-search">
+              <input
+                ref={inputRef}
+                className="address-heading-menu-search-input"
+                type="text"
+                value={searchQuery}
+                placeholder="Search property address"
+                aria-label="Search property address"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") closeMenu();
+                }}
+              />
+            </div>
+            <ul role="listbox">
+              {filteredOptions.length === 0 ? (
+                <li className="inline-menu-empty" aria-hidden="true">
+                  No matches
+                </li>
+              ) : (
+                filteredOptions.map((option) => {
+                  const selected = option.address === current;
+                  return (
+                    <li key={option.address}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        className={selected ? "is-selected" : undefined}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          onSelect(option);
+                          closeMenu();
+                        }}
+                      >
+                        <span className="inline-radio" />
+                        {option.address}
+                      </button>
+                    </li>
+                  );
+                })
+              )}
             </ul>
           </div>,
           document.body,
@@ -869,21 +962,13 @@ function SelectField({
   return (
     <label className="edit-field">
       {label}
-      <span className="edit-select">
-        <select
-          value={value}
-          className={value.trim() ? undefined : "is-placeholder"}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          <option value="">{placeholder ?? "Select"}</option>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <img className="edit-select-chevron" src="/assets/chevron-down-sm.svg" alt="" />
-      </span>
+      <SearchableSelect
+        value={value}
+        options={options}
+        placeholder={placeholder ?? "Select"}
+        ariaLabel={label}
+        onChange={onChange}
+      />
     </label>
   );
 }
@@ -1024,10 +1109,10 @@ function InlineField({
   labelHint?: string;
 }) {
   const [editing, setEditing] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [selectOpen, setSelectOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const rootRef = useRef<HTMLDivElement>(null);
-  const choices = options ? ["None", ...options.filter((option) => option !== "None")] : undefined;
+  const hasChoices = Boolean(options);
 
   useEffect(() => {
     if (!editing) setDraft(value);
@@ -1035,13 +1120,12 @@ function InlineField({
 
   function close(next = draft) {
     setEditing(false);
-    setMenuOpen(false);
     const committed = inputType === "date" ? normalizeAppDateInput(next) : next;
     if (committed !== value) onCommit(committed);
   }
 
   useEffect(() => {
-    if (!editing) return;
+    if (!editing || hasChoices) return;
     function onPointerDown(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) close();
     }
@@ -1049,13 +1133,7 @@ function InlineField({
     return () => document.removeEventListener("mousedown", onPointerDown);
   });
 
-  function choose(option: string) {
-    const next = option === "None" ? "" : option;
-    setDraft(next);
-    close(next);
-  }
-
-  const selectedLabel = value.trim() ? value : "None";
+  const fieldEditing = editing || selectOpen;
   const isEmpty = !value.trim();
   const display = isEmpty ? (emptyLabel ?? shown(value)) : inputType === "date" ? formatAppDate(value) : value;
   const valueClass = isEmpty ? "inline-field-value is-placeholder" : "inline-field-value";
@@ -1067,7 +1145,7 @@ function InlineField({
       className={
         [
           "kv-row inline-field",
-          editing ? "is-editing" : "",
+          fieldEditing ? "is-editing" : "",
           invalid ? "is-error" : "",
           tone === "parent" ? "is-parent" : "",
         ]
@@ -1082,41 +1160,19 @@ function InlineField({
         </span>
       )}
       <div className="kv-value">
-      {editing && choices ? (
-        <div className="inline-field-editor">
-          <button
-            type="button"
-            className="inline-select"
-            aria-expanded={menuOpen}
-            aria-haspopup="listbox"
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <span className="inline-field-text">{draft.trim() ? draft : "None"}</span>
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M4 6.2 8 10.2 12 6.2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </button>
-          {menuOpen && (
-            <ul className="inline-menu" role="listbox">
-              {choices.map((option) => {
-                const active = option === selectedLabel || (option === "None" && !value.trim());
-                return (
-                  <li key={option}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={active}
-                      className={active ? "is-selected" : ""}
-                      onClick={() => choose(option)}
-                    >
-                      <span className="inline-radio" />
-                      {option}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+      {hasChoices ? (
+        <div className={`inline-field-editor${prefix ? " inline-field-editor-with-prefix" : ""}`}>
+          {prefix}
+          <SearchableSelect
+            noneOption
+            value={value}
+            options={options ?? []}
+            placeholder={emptyLabel ?? "Select"}
+            ariaLabel={label}
+            listboxId={`${anchorId ?? label.replace(/\s+/g, "-").toLowerCase()}-listbox`}
+            onOpenChange={setSelectOpen}
+            onChange={onCommit}
+          />
         </div>
       ) : editing ? (
         <input
@@ -1141,15 +1197,15 @@ function InlineField({
         />
       ) : (
         <button type="button" className={valueClass} onClick={() => {
-          setDraft(inputType === "date" ? (value.trim() ? formatAppDate(value) : "") : value);
+          const nextDraft = inputType === "date" ? (value.trim() ? formatAppDate(value) : "") : value;
+          setDraft(nextDraft);
           setEditing(true);
-          setMenuOpen(Boolean(choices));
         }}>
           {prefix}
           <span className="inline-field-text">{display}</span>
         </button>
       )}
-      {!editing && suffix}
+      {!fieldEditing && suffix}
       </div>
     </div>
   );
@@ -1229,17 +1285,60 @@ function ParentCompanyField({
   onCreateNew: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isFiltering, setIsFiltering] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const current = value.trim();
 
+  const queryForFilter = open && !isFiltering ? current : searchQuery;
+  const inputDisplayValue = open && !isFiltering ? current : searchQuery;
+
+  const filteredOptions = useMemo(() => {
+    const names = options.map((option) => option.name);
+    const filteredNames = filterOptionsBySearch(names, queryForFilter, current);
+    return options.filter((option) => filteredNames.includes(option.name));
+  }, [options, queryForFilter, current]);
+
+  function closeMenu() {
+    setOpen(false);
+    setSearchQuery("");
+    setIsFiltering(false);
+  }
+
+  function choose(name: string) {
+    onSelect(name);
+    closeMenu();
+  }
+
+  function openMenu() {
+    setSearchQuery(current);
+    setIsFiltering(false);
+    setOpen(true);
+  }
+
+  function clearSelection() {
+    onSelect("");
+    closeMenu();
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => {
+      const input = inputRef.current;
+      input?.focus();
+      if (!isFiltering && current) input?.select();
+    });
+  }, [open, isFiltering, current]);
+
   useLayoutEffect(() => {
     if (!open) return;
     function place() {
-      const trigger = triggerRef.current;
-      if (!trigger) return;
-      const rect = trigger.getBoundingClientRect();
+      const anchor = inputRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
       const width = 280;
       const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
       const spaceBelow = window.innerHeight - rect.bottom - 12;
@@ -1255,11 +1354,11 @@ function ParentCompanyField({
     place();
     function onPointerDown(event: MouseEvent) {
       const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      setOpen(false);
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      closeMenu();
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") closeMenu();
     }
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -1271,53 +1370,66 @@ function ParentCompanyField({
       window.removeEventListener("resize", place);
       document.removeEventListener("scroll", place, true);
     };
-  }, [open]);
+  }, [open, searchQuery]);
 
   return (
-    <div className="kv-row inline-field is-parent">
+    <div ref={rootRef} className={`kv-row inline-field is-parent${open ? " is-editing" : ""}`}>
       <span className="kv-label">Parent Company</span>
       <div className="kv-value">
-        <button
-          ref={triggerRef}
-          type="button"
-          className={current ? "inline-field-value" : "inline-field-value is-placeholder"}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          onClick={() => setOpen((next) => !next)}
-        >
-          <span className="inline-field-text">{current || "Enter Parent Company"}</span>
-        </button>
-        {suffix}
+        <div className="inline-field-editor parent-company-value">
+          <SearchableSelectControl
+            open={open}
+            value={value}
+            placeholder="Enter Parent Company"
+            searchQuery={inputDisplayValue}
+            onSearchQueryChange={(query) => {
+              setIsFiltering(true);
+              setSearchQuery(query);
+            }}
+            onOpen={openMenu}
+            onClose={closeMenu}
+            onClear={clearSelection}
+            inputRef={inputRef}
+            ariaLabel="Parent Company"
+            tone="link"
+          />
+          {!open && suffix}
+        </div>
         {open &&
           createPortal(
             <div ref={menuRef} className="parent-company-menu" style={menuStyle} role="listbox" aria-label="Companies">
               <ul>
-                {options.map((option) => {
-                  const selected = option.name.toLowerCase() === current.toLowerCase();
-                  return (
-                    <li key={option.id}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={selected}
-                        className={selected ? "is-selected" : undefined}
-                        onClick={() => {
-                          onSelect(option.name);
-                          setOpen(false);
-                        }}
-                      >
-                        <span className="inline-radio" />
-                        {option.name}
-                      </button>
-                    </li>
-                  );
-                })}
+                {filteredOptions.length === 0 ? (
+                  <li className="inline-menu-empty" aria-hidden="true">
+                    No matches
+                  </li>
+                ) : (
+                  filteredOptions.map((option) => {
+                    const selected = option.name.toLowerCase() === current.toLowerCase();
+                    return (
+                      <li key={option.id}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={selected}
+                          className={selected ? "is-selected" : undefined}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => choose(option.name)}
+                        >
+                          <span className="inline-radio" />
+                          {option.name}
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
               </ul>
               <button
                 type="button"
                 className="parent-company-create"
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  setOpen(false);
+                  closeMenu();
                   onCreateNew();
                 }}
               >
@@ -1426,17 +1538,7 @@ export function LeadDetail({
   const companyHasEdits = companyEditCount > 0;
   const { floorText } = selected ? occupancyParts(selected) : { floorText: "" };
   const parentCompany = selected?.parentCompany?.trim() ?? "";
-  const parentPropertyId = parentCompany
-    ? (leads.find(
-        (item) =>
-          item.id !== lead.id &&
-          item.companies.some((company) => company.name.toLowerCase() === parentCompany.toLowerCase()),
-      )?.id ??
-      leads.find(
-        (item) => item.id !== lead.id && item.name.toLowerCase().startsWith(parentCompany.toLowerCase()),
-      )?.id ??
-      null)
-    : null;
+  const parentCompanyTarget = parentCompany ? resolveParentCompanyTarget(lead, leads, parentCompany) : null;
   const step = workflowIndex(lead.status);
   const location = lead.address.trim() && lead.address !== "N/A" ? lead.address : "Address unavailable";
   const mapQuery = location === "Address unavailable" ? "" : location;
@@ -1961,7 +2063,7 @@ export function LeadDetail({
           </ol>
 
           <div className="property-facts">
-            <div className="property-facts-summary">
+            <div className="property-facts-fields">
               <InlineField
                 label="Property Name"
                 value={fieldValue(lead.name)}
@@ -1981,9 +2083,8 @@ export function LeadDetail({
                 emptyLabel="Enter Address"
                 onCommit={(value) => updateLead({ address: value })}
               />
-            </div>
-            {propertyFactsExpanded && (
-              <div className="property-facts-more">
+              {propertyFactsExpanded ? (
+                <>
                 <InlineField
                   label="Tenancy"
                   value={tenancyValue}
@@ -2062,8 +2163,9 @@ export function LeadDetail({
                   options={withCurrentOption(lead.buildingStatus, propertyBuildingStatuses)}
                   onCommit={(value) => updateLead({ buildingStatus: value })}
                 />
-              </div>
-            )}
+                </>
+              ) : null}
+            </div>
             <button
               type="button"
               className="property-facts-toggle"
@@ -2223,12 +2325,22 @@ export function LeadDetail({
                           setCreateParentOpen(true);
                         }}
                         suffix={
-                          parentPropertyId && (selected.parentCompany ?? "").trim() ? (
+                          parentCompanyTarget && parentCompany ? (
                             <button
                               type="button"
                               className="company-parent-link"
-                              aria-label={`Open another property for ${selected.parentCompany}`}
-                              onClick={() => onOpenLead(parentPropertyId)}
+                              aria-label={
+                                parentCompanyTarget.kind === "same-lead"
+                                  ? `View ${parentCompany} on this property`
+                                  : `Open another property for ${parentCompany}`
+                              }
+                              onClick={() => {
+                                if (parentCompanyTarget.kind === "same-lead") {
+                                  setSelectedId(parentCompanyTarget.companyId);
+                                  return;
+                                }
+                                onOpenLead(parentCompanyTarget.leadId);
+                              }}
                             >
                               <svg viewBox="0 0 16 16" aria-hidden="true">
                                 <path
@@ -2751,16 +2863,13 @@ export function LeadDetail({
               <div className="create-fields-row">
                 <label className="create-field-span-2">
                   <span>Property Address <span className="req">*</span></span>
-                  <select
+                  <SearchableSelect
                     value={parentDraft.address}
-                    required
-                    onChange={(event) => applyParentAddress(event.target.value)}
-                  >
-                    <option value="">Enter Property Address</option>
-                    {addressChoices(leads).map((option) => (
-                      <option key={option.address} value={option.address}>{option.address}</option>
-                    ))}
-                  </select>
+                    options={addressChoices(leads).map((option) => option.address)}
+                    placeholder="Enter Property Address"
+                    ariaLabel="Property Address"
+                    onChange={applyParentAddress}
+                  />
                 </label>
                 <label>
                   <span>Property Name</span>
@@ -2773,16 +2882,15 @@ export function LeadDetail({
               </div>
               <label>
                 <span>Primary Vertical <span className="req">*</span></span>
-                <select
+                <SearchableSelect
                   value={parentDraft.primaryVertical}
-                  required
-                  onChange={(event) => setParentDraft((current) => ({ ...current, primaryVertical: event.target.value }))}
-                >
-                  <option value="">Primary Vertical</option>
-                  {primaryVerticalOptions.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
+                  options={primaryVerticalOptions}
+                  placeholder="Primary Vertical"
+                  ariaLabel="Primary Vertical"
+                  onChange={(primaryVertical) =>
+                    setParentDraft((current) => ({ ...current, primaryVertical }))
+                  }
+                />
               </label>
               <label>
                 <span>Country <span className="req">*</span></span>

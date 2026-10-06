@@ -21,6 +21,7 @@ import {
 } from "./data";
 import { ContactFormFields } from "./ContactFormFields";
 import { LeadDetail } from "./LeadDetail";
+import { SearchableSelect } from "./SearchableSelect";
 
 type SortKey = ColumnKey;
 type SortDir = "asc" | "desc";
@@ -781,18 +782,13 @@ export default function App() {
                     <div className="create-fields-row">
                       <label className="create-field-span-2">
                         <span>Property Address <span className="req">*</span></span>
-                        <select
+                        <SearchableSelect
                           value={draft.address}
-                          required
-                          onChange={(event) => applyAddress(event.target.value)}
-                        >
-                          <option value="">Enter Property Address</option>
-                          {addressChoices(leads).map((option) => (
-                            <option key={option.address} value={option.address}>
-                              {option.address}
-                            </option>
-                          ))}
-                        </select>
+                          options={addressChoices(leads).map((option) => option.address)}
+                          placeholder="Enter Property Address"
+                          ariaLabel="Property Address"
+                          onChange={applyAddress}
+                        />
                       </label>
                       <label>
                         <span>Property Name</span>
@@ -806,16 +802,13 @@ export default function App() {
                     <div className="create-fields-row">
                       <label>
                         <span>Primary Vertical <span className="req">*</span></span>
-                        <select
+                        <SearchableSelect
                           value={draft.primaryVertical}
-                          required
-                          onChange={(event) => setDraft({ ...draft, primaryVertical: event.target.value })}
-                        >
-                          <option value="">Primary Vertical</option>
-                          {primaryVerticalOptions.map((option) => (
-                            <option key={option}>{option}</option>
-                          ))}
-                        </select>
+                          options={primaryVerticalOptions}
+                          placeholder="Primary Vertical"
+                          ariaLabel="Primary Vertical"
+                          onChange={(primaryVertical) => setDraft({ ...draft, primaryVertical })}
+                        />
                       </label>
                       <label>
                         <span>Country <span className="req">*</span></span>
@@ -879,13 +872,13 @@ export default function App() {
                       <div className="create-section-head">
                         <h4>Company {companyIndex + 1}</h4>
                         {draft.companies.length > 1 && (
-                          <button
-                            type="button"
+        <button
+          type="button"
                             className="btn btn-sm"
                             onClick={() => removeCreateCompany(company.id)}
-                          >
+        >
                             Remove
-                          </button>
+        </button>
                         )}
                       </div>
                       <div className="create-fields">
@@ -902,40 +895,32 @@ export default function App() {
                         </label>
                         <label>
                           <span>Parent Company</span>
-                          <select
+                          <SearchableSelect
                             value={company.parentCompany}
-                            onChange={(event) =>
-                              updateCreateCompany(company.id, { parentCompany: event.target.value })
+                            options={parentCompanyNames(leads)}
+                            placeholder="Select Parent Company"
+                            ariaLabel="Parent Company"
+                            onChange={(parentCompany) =>
+                              updateCreateCompany(company.id, { parentCompany })
                             }
-                          >
-                            <option value="">Select Parent Company</option>
-                            {parentCompanyNames(leads).map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </label>
                         <label>
                           <span>Company Affiliation</span>
-                          <select
+                          <SearchableSelect
                             value={company.propertyAffiliation}
-                            onChange={(event) =>
-                              updateCreateCompany(company.id, { propertyAffiliation: event.target.value })
+                            options={propertyAffiliationOptions}
+                            placeholder="Select Company Affiliation"
+                            ariaLabel="Company Affiliation"
+                            onChange={(propertyAffiliation) =>
+                              updateCreateCompany(company.id, { propertyAffiliation })
                             }
-                          >
-                            <option value="">Select Company Affiliation</option>
-                            {propertyAffiliationOptions.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </label>
                       </div>
                     </div>
                   ))}
-                </section>
+      </section>
                 )}
 
                 {createLeadStep === 2 && (
@@ -1461,12 +1446,12 @@ export default function App() {
                             <circle cx="10" cy="8" r="1" fill="currentColor" />
                             <circle cx="6" cy="12" r="1" fill="currentColor" />
                             <circle cx="10" cy="12" r="1" fill="currentColor" />
-                          </svg>
+                </svg>
                         </span>
-                      </li>
+            </li>
                     );
                   })}
-                </ul>
+          </ul>
               </section>
             </div>
             <div className="column-custom-footer">

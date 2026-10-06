@@ -1,4 +1,5 @@
 import { ownerAffiliationOptions, type Contact } from "./data";
+import { SearchableSelect } from "./SearchableSelect";
 import { ContactOwnerAffiliationChips } from "./OwnerAffiliationField";
 
 const propertyCountries = ["United States"];
@@ -139,21 +140,13 @@ function SelectField({
   return (
     <label className="edit-field">
       {label}
-      <span className="edit-select">
-        <select
-          value={value}
-          className={value.trim() ? undefined : "is-placeholder"}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          <option value="">{placeholder ?? "Select"}</option>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <img className="edit-select-chevron" src="/assets/chevron-down-sm.svg" alt="" />
-      </span>
+      <SearchableSelect
+        value={value}
+        options={options}
+        placeholder={placeholder ?? "Select"}
+        ariaLabel={label}
+        onChange={onChange}
+      />
     </label>
   );
 }

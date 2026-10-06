@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ownerAffiliationOptions } from "./data";
+import { filterOptionsBySearch } from "./SearchableSelect";
 
 function parseOwnerAffiliations(value: string) {
   return value
@@ -80,10 +81,11 @@ export function ContactOwnerAffiliationChips({
 }) {
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [draft, setDraft] = useState(value);
   const rootRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const selected = parseOwnerAffiliations(value);
-  const draftSelected = parseOwnerAffiliations(draft);
   const isEmpty = selected.length === 0;
   const menuSelected = parseOwnerAffiliations(draft);
   const optionsList = affiliationChipOptions(options, menuSelected);
@@ -96,14 +98,27 @@ export function ContactOwnerAffiliationChips({
   function close(commit = true) {
     setEditing(false);
     setMenuOpen(false);
+    setSearchQuery("");
     if (commit && draft !== value) onChange(draft);
   }
 
   function openEditor() {
     setDraft(value);
+    const initial = parseOwnerAffiliations(value).join(", ");
+    setSearchQuery(initial);
     setEditing(true);
     setMenuOpen(true);
   }
+
+  const filteredOptionsList = useMemo(() => {
+    const summary = menuSelected.join(", ");
+    return filterOptionsBySearch(optionsList, searchQuery, summary);
+  }, [optionsList, searchQuery, menuSelected]);
+
+  useEffect(() => {
+    if (!editing) return;
+    searchInputRef.current?.focus();
+  }, [editing]);
 
   function toggle(option: string) {
     const nextSet = new Set(menuSelectedSet);
@@ -136,23 +151,24 @@ export function ContactOwnerAffiliationChips({
       <div className="kv-value">
         {editing ? (
           <div className="inline-field-editor">
-            <button
-              type="button"
-              className="inline-select contact-owner-affiliation-trigger"
-              aria-expanded={menuOpen}
-              aria-haspopup="listbox"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              <span className="contact-owner-affiliation-trigger-body">
-                <OwnerAffiliationSummary selected={draftSelected} emptyLabel={emptyLabel} />
-              </span>
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 6.2 8 10.2 12 6.2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </button>
+            <input
+              ref={searchInputRef}
+              className="inline-field-input owner-affiliation-search"
+              type="text"
+              value={searchQuery}
+              placeholder={emptyLabel}
+              aria-label={label}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setMenuOpen(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") close(false);
+              }}
+            />
             {menuOpen ? (
               <ul className="inline-menu owner-affiliation-menu" role="listbox" aria-multiselectable="true">
-                {optionsList.map((option) => {
+                {filteredOptionsList.map((option) => {
                   const isSelected = menuSelectedSet.has(option);
                   return (
                     <li key={option}>
