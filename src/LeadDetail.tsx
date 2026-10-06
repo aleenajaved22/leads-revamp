@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PropertyMap } from "./PropertyMap";
+import { Toast } from "./Toast";
 import {
   addressChoices,
   companyStatusClass,
@@ -1389,6 +1390,7 @@ export function LeadDetail({
   const pendingScrollTimerRef = useRef<number | null>(null);
   const companyEditBaselineRef = useRef<Company | null>(null);
   const [companyBaselineVersion, setCompanyBaselineVersion] = useState(0);
+  const [companyUpdateToastOpen, setCompanyUpdateToastOpen] = useState(false);
 
   useEffect(() => {
     setSelectedId(lead.companies[0]?.id ?? "");
@@ -1572,6 +1574,7 @@ export function LeadDetail({
     if (!company) return;
     companyEditBaselineRef.current = structuredClone(company);
     setCompanyBaselineVersion((version) => version + 1);
+    setCompanyUpdateToastOpen(true);
   }
 
   function updateCompanyField(key: keyof Company, value: string) {
@@ -2470,6 +2473,13 @@ export function LeadDetail({
           </button>
         </div>
       )}
+
+      <Toast
+        open={companyUpdateToastOpen}
+        title="Changes Updated!"
+        description="Your company changes have been saved successfully."
+        onClose={() => setCompanyUpdateToastOpen(false)}
+      />
 
       {leadConfirm && (
         <div className="modal-backdrop" onClick={() => setLeadConfirm(null)}>
