@@ -1,6 +1,15 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import {
+  DATE_PLACEHOLDER,
+  appDateToIso,
+  formatAppDate,
+  isoToAppDate,
+  normalizeAppDateInput,
+} from "./dates";
 import { PropertyMap } from "./PropertyMap";
+import { ContactFormFields } from "./ContactFormFields";
+import { ContactOwnerAffiliationChips } from "./OwnerAffiliationField";
 import { Toast } from "./Toast";
 import {
   addressChoices,
@@ -8,6 +17,8 @@ import {
   type AddressChoice,
   emptyCompany,
   emptyContact,
+  propertyAffiliationOptions,
+  primaryVerticalOptions,
   occupancyFloorValue,
   occupancyLabel,
   occupancyParts,
@@ -55,9 +66,7 @@ const occupancyDateFields: { key: "effectiveDate" | "tillDate"; label: string; l
   },
 ];
 
-const propertyAffiliationOptions = ["Managed", "Owned", "Regional Office", "Shared", "Tenant", "Headquarters"];
 
-const propertyPrimaryVerticals = ["Commercial", "Industrial", "Office", "Retail", "Healthcare", "Mixed Use"];
 const propertyBuildingStatuses = ["Existing", "Under Construction", "Planned"];
 const propertyCountries = ["United States"];
 const propertyStates = [
@@ -95,6 +104,8 @@ function propertyAddressOptions(leads: Lead[], currentAddress: string) {
 function emptyParentDraft() {
   return {
     companyName: "",
+    effectiveDate: "",
+    tillDate: "",
     name: "",
     primaryVertical: "",
     address: "",
@@ -123,220 +134,72 @@ function parentCompanyChoices(leads: Lead[], currentCompanyId: string) {
   return options;
 }
 
-const ownerAffiliationOptions = [
-  "Decision Maker",
-  "Billing",
-  "End User",
-  "Blocker",
-  "Influencer",
+const companyChangeKeys: (keyof Company)[] = [
+  "name",
+  "secondaryVertical",
+  "propertyAffiliation",
+  "phone",
+  "employees",
+  "naics",
+  "revenue",
+  "website",
+  "emailDomain",
+  "floor",
+  "floorRange",
+  "suite",
+  "suiteRange",
+  "occupiedArea",
+  "effectiveDate",
+  "tillDate",
+  "status",
+  "parentCompany",
 ];
 
-function parseOwnerAffiliations(value: string) {
-  return value
-    .split(/[,;|]/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
+const contactChangeKeys: (keyof Contact)[] = [
+  "firstName",
+  "lastName",
+  "title",
+  "email",
+  "phone",
+  "cell",
+  "ownerAffiliation",
+  "address",
+  "country",
+  "state",
+  "city",
+  "zipcode",
+];
 
-function serializeOwnerAffiliations(values: string[]) {
-  return values.join(", ");
-}
-
-function affiliationChipOptions(options: string[], selected: string[]) {
-  const extras = selected.filter((option) => !options.includes(option));
-  return [...extras, ...options];
-}
-
-function OwnerAffiliationOverflowHint({ labels }: { labels: string[] }) {
-  const [open, setOpen] = useState(false);
-
-  if (labels.length === 0) return null;
-
-  return (
-    <span
-      className="owner-affiliation-overflow-wrap"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <span className="owner-affiliation-chip owner-affiliation-overflow" aria-expanded={open}>
-        +{labels.length}
-      </span>
-      {open ? (
-        <span className="owner-affiliation-overflow-popover" role="tooltip">
-          {labels.map((label) => (
-            <span key={label} className="owner-affiliation-chip is-selected is-readonly">
-              {label}
-            </span>
-          ))}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function OwnerAffiliationSummary({ selected, emptyLabel }: { selected: string[]; emptyLabel: string }) {
-  if (selected.length === 0) {
-    return <span className="inline-field-text">{emptyLabel}</span>;
+function countCompanyChanges(current: Company, baseline: Company) {
+  let count = 0;
+  for (const key of companyChangeKeys) {
+    const left = current[key];
+    const right = baseline[key];
+    if ((left ?? "") !== (right ?? "")) count += 1;
   }
+  if (JSON.stringify(current.floorMates ?? []) !== JSON.stringify(baseline.floorMates ?? [])) count += 1;
 
-  const visibleSelected = selected.slice(0, 2);
-  const overflowSelected = selected.slice(2);
+  const baselineContacts = new Map(baseline.contacts.map((contact) => [contact.id, contact]));
+  const currentContactIds = new Set(current.contacts.map((contact) => contact.id));
 
-  return (
-    <>
-      {visibleSelected.map((label) => (
-        <span key={label} className="owner-affiliation-chip is-selected is-readonly">
-          {label}
-        </span>
-      ))}
-      <OwnerAffiliationOverflowHint labels={overflowSelected} />
-    </>
-  );
-}
-
-function ContactOwnerAffiliationChips({
-  value,
-  onChange,
-  label = "Owner Affiliation",
-  options = ownerAffiliationOptions,
-  emptyLabel = "Select Owner Affiliation",
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  label?: string;
-  options?: string[];
-  emptyLabel?: string;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const selected = parseOwnerAffiliations(value);
-  const draftSelected = parseOwnerAffiliations(draft);
-  const isEmpty = selected.length === 0;
-  const menuSelected = parseOwnerAffiliations(draft);
-  const optionsList = affiliationChipOptions(options, menuSelected);
-  const menuSelectedSet = new Set(menuSelected);
-
-  useEffect(() => {
-    if (!editing) setDraft(value);
-  }, [editing, value]);
-
-  function close(commit = true) {
-    setEditing(false);
-    setMenuOpen(false);
-    if (commit && draft !== value) onChange(draft);
-  }
-
-  function openEditor() {
-    setDraft(value);
-    setEditing(true);
-    setMenuOpen(true);
-  }
-
-  function toggle(option: string) {
-    const nextSet = new Set(menuSelectedSet);
-    if (nextSet.has(option)) nextSet.delete(option);
-    else nextSet.add(option);
-    setDraft(serializeOwnerAffiliations(optionsList.filter((item) => nextSet.has(item))));
-  }
-
-  useEffect(() => {
-    if (!editing) return;
-    function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) close();
+  for (const contact of current.contacts) {
+    const snapshot = baselineContacts.get(contact.id);
+    if (!snapshot) {
+      const filled = contactChangeKeys.filter((key) => String(contact[key] ?? "").trim()).length;
+      count += filled > 0 ? filled : 1;
+      continue;
     }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  });
+    for (const key of contactChangeKeys) {
+      if ((contact[key] ?? "") !== (snapshot[key] ?? "")) count += 1;
+    }
+  }
 
-  const valueClass = isEmpty ? "inline-field-value is-placeholder" : "inline-field-value";
+  for (const contact of baseline.contacts) {
+    if (!currentContactIds.has(contact.id)) count += 1;
+  }
 
-  return (
-    <div
-      ref={rootRef}
-      className={
-        editing
-          ? "kv-row inline-field contact-owner-affiliation-field is-editing"
-          : "kv-row inline-field contact-owner-affiliation-field"
-      }
-    >
-      <span className="kv-label">{label}</span>
-      <div className="kv-value">
-        {editing ? (
-          <div className="inline-field-editor">
-            <button
-              type="button"
-              className="inline-select contact-owner-affiliation-trigger"
-              aria-expanded={menuOpen}
-              aria-haspopup="listbox"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              <span className="contact-owner-affiliation-trigger-body">
-                <OwnerAffiliationSummary selected={draftSelected} emptyLabel={emptyLabel} />
-              </span>
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 6.2 8 10.2 12 6.2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </button>
-            {menuOpen ? (
-              <ul className="inline-menu owner-affiliation-menu" role="listbox" aria-multiselectable="true">
-                {optionsList.map((option) => {
-                  const isSelected = menuSelectedSet.has(option);
-                  return (
-                    <li key={option}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={isSelected}
-                        className={isSelected ? "is-selected" : undefined}
-                        onClick={() => toggle(option)}
-                      >
-                        <span className="inline-checkbox" aria-hidden="true" />
-                        {option}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-          </div>
-        ) : (
-          <button type="button" className={`${valueClass} contact-owner-affiliation-value`} onClick={openEditor}>
-            <OwnerAffiliationSummary selected={selected} emptyLabel={emptyLabel} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
+  return count;
 }
-
-const contactFields: {
-  key: keyof Contact;
-  label: string;
-  placeholder: string;
-  kind?: "phone";
-  options?: string[];
-}[] = [
-  { key: "firstName", label: "First Name", placeholder: "Enter First Name" },
-  { key: "lastName", label: "Last Name", placeholder: "Enter Last Name" },
-  { key: "title", label: "Title", placeholder: "Enter Title" },
-  { key: "email", label: "Email", placeholder: "Enter Email" },
-  { key: "phone", label: "Phone Number", placeholder: "+1 800 567 8905", kind: "phone" },
-  { key: "cell", label: "Cell Number", placeholder: "+1 800 567 8905", kind: "phone" },
-  {
-    key: "ownerAffiliation",
-    label: "Owner Affiliation",
-    placeholder: "Select Owner Affiliation",
-    options: ownerAffiliationOptions,
-  },
-  { key: "address", label: "Address", placeholder: "Enter Address" },
-  { key: "country", label: "Country", placeholder: "Select Country", options: propertyCountries },
-  { key: "state", label: "State", placeholder: "Select State", options: propertyStates },
-  { key: "city", label: "City", placeholder: "Select City", options: propertyCities },
-  { key: "zipcode", label: "Zip / Postal Code", placeholder: "Enter Zip / Postal Code" },
-];
 
 const workflow = [
   { status: "Raw" as Status, label: "Raw Data" },
@@ -356,11 +219,6 @@ function workflowIndex(status: Status) {
   if (status === "Cleaned") return 1;
   if (status === "Enriched" || status === "Approved") return 2;
   return 0;
-}
-
-function formatFieldDate(value: string) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return match ? `${match[2]}/${match[3]}/${match[1]}` : value;
 }
 
 function shown(value: string) {
@@ -818,27 +676,146 @@ function stamp(lead: Lead): Lead {
   };
 }
 
+function CreateModalDateField({
+  label,
+  labelHint,
+  value,
+  onChange,
+}: {
+  label: string;
+  labelHint: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const hiddenDateRef = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (!focused) {
+      setDraft(value.trim() ? formatAppDate(value) : "");
+    }
+  }, [focused, value]);
+
+  function openPicker() {
+    const hidden = hiddenDateRef.current;
+    if (!hidden) return;
+    hidden.value = appDateToIso(value) || "";
+    if (typeof hidden.showPicker === "function") {
+      try {
+        hidden.showPicker();
+      } catch {
+        hidden.click();
+      }
+    } else {
+      hidden.click();
+    }
+  }
+
+  const shownValue = focused ? draft : value.trim() ? formatAppDate(value) : "";
+
+  return (
+    <label>
+      <span className="create-field-label">
+        <span>{label}</span>
+        <LabelInfoHint text={labelHint} />
+      </span>
+      <span className="create-date-input-shell">
+        <input
+          type="text"
+          inputMode="numeric"
+          placeholder={DATE_PLACEHOLDER}
+          value={shownValue}
+          aria-label={label}
+          onFocus={() => {
+            setDraft(value.trim() ? formatAppDate(value) : "");
+            setFocused(true);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            onChange(normalizeAppDateInput(draft));
+          }}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <input
+          ref={hiddenDateRef}
+          type="date"
+          className="create-date-input-hidden"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            if (event.target.value) onChange(isoToAppDate(event.target.value));
+          }}
+        />
+        <button type="button" className="create-date-input-trigger" aria-label={`Open calendar for ${label}`} onClick={openPicker}>
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M2.5 6h11M5.5 2.5v2M10.5 2.5v2M3.5 4h9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
+            />
+          </svg>
+        </button>
+      </span>
+    </label>
+  );
+}
+
 function TextField({
   label,
   value,
   placeholder,
   onChange,
   type = "text",
+  labelHint,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   onChange: (value: string) => void;
   type?: "text" | "date";
+  labelHint?: string;
 }) {
+  const isDate = type === "date";
+  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (!focused) {
+      setDraft(value.trim() ? formatAppDate(value) : "");
+    }
+  }, [focused, value]);
+
+  const shownValue = isDate ? (focused ? draft : value.trim() ? formatAppDate(value) : "") : value;
+
   return (
     <label className="edit-field">
-      {label}
+      <span className="edit-field-label">
+        <span className="edit-field-label-text">{label}</span>
+        {labelHint ? <LabelInfoHint text={labelHint} /> : null}
+      </span>
       <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
+        type="text"
+        inputMode={isDate ? "numeric" : undefined}
+        value={shownValue}
+        placeholder={isDate ? (placeholder ?? DATE_PLACEHOLDER) : placeholder}
+        onFocus={() => {
+          if (!isDate) return;
+          setDraft(value.trim() ? formatAppDate(value) : "");
+          setFocused(true);
+        }}
+        onBlur={() => {
+          if (!isDate) return;
+          setFocused(false);
+          onChange(normalizeAppDateInput(draft));
+        }}
+        onChange={(event) => {
+          if (isDate) setDraft(event.target.value);
+          else onChange(event.target.value);
+        }}
       />
     </label>
   );
@@ -1059,7 +1036,8 @@ function InlineField({
   function close(next = draft) {
     setEditing(false);
     setMenuOpen(false);
-    if (next !== value) onCommit(next);
+    const committed = inputType === "date" ? normalizeAppDateInput(next) : next;
+    if (committed !== value) onCommit(committed);
   }
 
   useEffect(() => {
@@ -1079,7 +1057,7 @@ function InlineField({
 
   const selectedLabel = value.trim() ? value : "None";
   const isEmpty = !value.trim();
-  const display = isEmpty ? (emptyLabel ?? shown(value)) : inputType === "date" ? formatFieldDate(value) : value;
+  const display = isEmpty ? (emptyLabel ?? shown(value)) : inputType === "date" ? formatAppDate(value) : value;
   const valueClass = isEmpty ? "inline-field-value is-placeholder" : "inline-field-value";
 
   return (
@@ -1143,8 +1121,10 @@ function InlineField({
       ) : editing ? (
         <input
           className="inline-field-input"
-          type={inputType}
+          type="text"
+          inputMode={inputType === "date" ? "numeric" : undefined}
           value={draft}
+          placeholder={inputType === "date" ? (emptyLabel ?? DATE_PLACEHOLDER) : undefined}
           aria-label={label}
           autoFocus
           onChange={(event) => setDraft(event.target.value)}
@@ -1161,7 +1141,7 @@ function InlineField({
         />
       ) : (
         <button type="button" className={valueClass} onClick={() => {
-          setDraft(value);
+          setDraft(inputType === "date" ? (value.trim() ? formatAppDate(value) : "") : value);
           setEditing(true);
           setMenuOpen(Boolean(choices));
         }}>
@@ -1438,11 +1418,12 @@ export function LeadDetail({
     : lead.companies;
 
   const selected = lead.companies.find((company) => company.id === selectedId) ?? lead.companies[0];
-  const companyHasEdits = useMemo(() => {
+  const companyEditCount = useMemo(() => {
     const baseline = companyEditBaselineRef.current;
-    if (!selected || !baseline || selected.id !== baseline.id) return false;
-    return JSON.stringify(selected) !== JSON.stringify(baseline);
+    if (!selected || !baseline || selected.id !== baseline.id) return 0;
+    return countCompanyChanges(selected, baseline);
   }, [selected, lead, companyBaselineVersion]);
+  const companyHasEdits = companyEditCount > 0;
   const { floorText } = selected ? occupancyParts(selected) : { floorText: "" };
   const parentCompany = selected?.parentCompany?.trim() ?? "";
   const parentPropertyId = parentCompany
@@ -1654,6 +1635,8 @@ export function LeadDetail({
           ...emptyCompany(),
           id: `c-${Date.now()}`,
           name: companyName,
+          effectiveDate: parentDraft.effectiveDate,
+          tillDate: parentDraft.tillDate,
           status: "Cleaned",
         },
       ],
@@ -1708,7 +1691,14 @@ export function LeadDetail({
   }
 
   function renderCompanyFormField(
-    field: { key: keyof Company; label: string; placeholder?: string; kind?: "phone" | "date"; options?: string[] },
+    field: {
+      key: keyof Company;
+      label: string;
+      placeholder?: string;
+      kind?: "phone" | "date";
+      options?: string[];
+      labelHint?: string;
+    },
     value: string,
     onChange: (value: string) => void,
   ) {
@@ -1728,7 +1718,9 @@ export function LeadDetail({
         <TextField
           key={field.key}
           label={field.label}
+          labelHint={field.labelHint}
           value={value}
+          placeholder={field.placeholder}
           type="date"
           onChange={onChange}
         />
@@ -1980,7 +1972,7 @@ export function LeadDetail({
                 label="Primary Vertical"
                 value={fieldValue(lead.primaryVertical)}
                 emptyLabel="Select Primary Vertical"
-                options={withCurrentOption(lead.primaryVertical, propertyPrimaryVerticals)}
+                options={withCurrentOption(lead.primaryVertical, primaryVerticalOptions)}
                 onCommit={(value) => updateLead({ primaryVertical: value })}
               />
               <InlineField
@@ -2289,7 +2281,7 @@ export function LeadDetail({
                           label={field.label}
                           labelHint={field.labelHint}
                           value={selected[field.key]}
-                          emptyLabel="MM/DD/YYYY"
+                          emptyLabel={DATE_PLACEHOLDER}
                           inputType="date"
                           onCommit={(value) => updateCompanyField(field.key, value)}
                         />
@@ -2483,7 +2475,7 @@ export function LeadDetail({
             Cancel
           </button>
           <button type="button" className="btn btn-primary" onClick={confirmCompanyEdits} disabled={!companyHasEdits}>
-            Update
+            Update{companyHasEdits ? ` (${companyEditCount})` : ""}
           </button>
         </div>
       )}
@@ -2628,7 +2620,7 @@ export function LeadDetail({
                   )}
                   {occupancyDateFields.map((field) =>
                     renderCompanyFormField(
-                      { ...field, placeholder: "MM/DD/YYYY", kind: "date" },
+                      { ...field, placeholder: DATE_PLACEHOLDER, kind: "date" },
                       newCompany[field.key],
                       (value) => setNewCompany((current) => ({ ...current, [field.key]: value })),
                     ),
@@ -2661,57 +2653,7 @@ export function LeadDetail({
                         Remove
                       </button>
                     </div>
-                    <div className="company-modal-fields kv-edit">
-                      {contactFields.map((field) => {
-                        const onChange = (value: string) => updateNewContact(contact.id, { [field.key]: value });
-                        if (field.key === "ownerAffiliation") {
-                          return (
-                            <ContactOwnerAffiliationChips
-                              key={field.key}
-                              label={field.label}
-                              options={field.options}
-                              emptyLabel={field.placeholder}
-                              value={contact.ownerAffiliation}
-                              onChange={onChange}
-                            />
-                          );
-                        }
-                        if (field.kind === "phone") {
-                          return (
-                            <PhoneField
-                              key={field.key}
-                              label={field.label}
-                              value={contact[field.key]}
-                              placeholder={field.placeholder}
-                              onChange={onChange}
-                            />
-                          );
-                        }
-                        if (field.options) {
-                          const isCountry = field.key === "country";
-                          const current = isCountry ? countryLabel(contact.country) : contact[field.key];
-                          return (
-                            <SelectField
-                              key={field.key}
-                              label={field.label}
-                              value={current}
-                              placeholder={field.placeholder}
-                              options={withCurrentOption(current, field.options)}
-                              onChange={(value) => onChange(isCountry ? countryCode(value) : value)}
-                            />
-                          );
-                        }
-                        return (
-                          <TextField
-                            key={field.key}
-                            label={field.label}
-                            value={contact[field.key]}
-                            placeholder={field.placeholder}
-                            onChange={onChange}
-                          />
-                        );
-                      })}
-                    </div>
+                    <ContactFormFields contact={contact} onPatch={(patch) => updateNewContact(contact.id, patch)} />
                   </div>
                 ))}
               </section>
@@ -2744,46 +2686,7 @@ export function LeadDetail({
                 ×
               </button>
             </div>
-            <div className="company-modal-fields kv-edit">
-              {contactFields.map((field) => {
-                const onChange = (value: string) =>
-                  setContactDraft((current) => ({ ...current, [field.key]: value }));
-                if (field.options) {
-                  const isCountry = field.key === "country";
-                  const current = isCountry ? countryLabel(contactDraft.country) : contactDraft[field.key];
-                  return (
-                    <SelectField
-                      key={field.key}
-                      label={field.label}
-                      value={current}
-                      placeholder={field.placeholder}
-                      options={withCurrentOption(current, field.options)}
-                      onChange={(value) => onChange(isCountry ? countryCode(value) : value)}
-                    />
-                  );
-                }
-                if (field.kind === "phone") {
-                  return (
-                    <PhoneField
-                      key={field.key}
-                      label={field.label}
-                      value={contactDraft[field.key]}
-                      placeholder={field.placeholder}
-                      onChange={onChange}
-                    />
-                  );
-                }
-                return (
-                  <TextField
-                    key={field.key}
-                    label={field.label}
-                    value={contactDraft[field.key]}
-                    placeholder={field.placeholder}
-                    onChange={onChange}
-                  />
-                );
-              })}
-            </div>
+            <ContactFormFields contact={contactDraft} onPatch={(patch) => setContactDraft((current) => ({ ...current, ...patch }))} />
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setContactMode(null)}>
                 Cancel
@@ -2822,15 +2725,29 @@ export function LeadDetail({
                 </button>
               </div>
               <div className="create-fields">
-              <label>
-                <span>Company Name <span className="req">*</span></span>
-                <input
-                  value={parentDraft.companyName}
-                  placeholder="Company Name"
-                  required
-                  onChange={(event) => setParentDraft((current) => ({ ...current, companyName: event.target.value }))}
+              <div className="create-fields-row">
+                <label>
+                  <span>Company Name <span className="req">*</span></span>
+                  <input
+                    value={parentDraft.companyName}
+                    placeholder="Company Name"
+                    required
+                    onChange={(event) => setParentDraft((current) => ({ ...current, companyName: event.target.value }))}
+                  />
+                </label>
+                <CreateModalDateField
+                  label="Company at Property - Effective Date"
+                  labelHint={occupancyDateFields[0].labelHint}
+                  value={parentDraft.effectiveDate}
+                  onChange={(effectiveDate) => setParentDraft((current) => ({ ...current, effectiveDate }))}
                 />
-              </label>
+                <CreateModalDateField
+                  label="Company at Property - Till Date"
+                  labelHint={occupancyDateFields[1].labelHint}
+                  value={parentDraft.tillDate}
+                  onChange={(tillDate) => setParentDraft((current) => ({ ...current, tillDate }))}
+                />
+              </div>
               <div className="create-fields-row">
                 <label className="create-field-span-2">
                   <span>Property Address <span className="req">*</span></span>
@@ -2862,7 +2779,7 @@ export function LeadDetail({
                   onChange={(event) => setParentDraft((current) => ({ ...current, primaryVertical: event.target.value }))}
                 >
                   <option value="">Primary Vertical</option>
-                  {propertyPrimaryVerticals.map((option) => (
+                  {primaryVerticalOptions.map((option) => (
                     <option key={option}>{option}</option>
                   ))}
                 </select>

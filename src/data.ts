@@ -128,6 +128,48 @@ function locationFromAddress(address: string) {
   };
 }
 
+export const primaryVerticalOptions = [
+  "Industrial",
+  "Housing",
+  "Manufacturing",
+  "Distribution",
+  "Commercial",
+];
+
+export const propertyAffiliationOptions = [
+  "Managed",
+  "Owned",
+  "Regional Office",
+  "Shared",
+  "Tenant",
+  "Headquarters",
+];
+
+export const ownerAffiliationOptions = [
+  "Decision Maker",
+  "Billing",
+  "End User",
+  "Blocker",
+  "Influencer",
+];
+
+export function parentCompanyNames(leads: Lead[]) {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const item of leads) {
+    for (const company of item.companies) {
+      const name = company.name.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      names.push(name);
+    }
+  }
+  names.sort((a, b) => a.localeCompare(b));
+  return names;
+}
+
 export function addressChoices(leads: Pick<Lead, "address" | "country" | "county" | "state" | "city" | "zipcode">[]) {
   const seen = new Set<string>();
   const choices: AddressChoice[] = [];
@@ -857,9 +899,4 @@ export const initialLeads: Lead[] = leadRecords.map((lead) => ({
   companies: companiesForLead(lead),
 }));
 
-export function parseDate(value: string) {
-  if (value === "-" || value === "N/A") return 0;
-  const [day, month, year] = value.split(" ")[0].split("/").map(Number);
-  if (!year) return 0;
-  return new Date(year, month - 1, day).getTime();
-}
+export { parseAppDate as parseDate } from "./dates";

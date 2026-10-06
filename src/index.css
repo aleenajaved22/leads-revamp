@@ -769,6 +769,11 @@ input[type="checkbox"]:checked::after {
   cursor: pointer;
 }
 
+.modal input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
 .modal input:focus, .modal select:focus, .search:focus-within { border-color: #146dff; }
 
 .modal input:disabled,
@@ -984,8 +989,12 @@ input[type="checkbox"]:checked::after {
 
 .modal-create-close {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
+  padding: 0;
   color: #444446;
   font-size: 22px;
   line-height: 1;
@@ -1004,8 +1013,304 @@ input[type="checkbox"]:checked::after {
   gap: 16px 20px;
 }
 
+.create-field-full {
+  grid-column: 1 / -1;
+}
+
 .create-field-span-2 {
   grid-column: span 2;
+}
+
+/* Create a Lead page — same field chrome as .modal / .modal-create (no .modal on form) */
+.modal-create-lead .create-fields label,
+.modal-create-lead .create-fields-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: #444446;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.modal-create-lead .create-fields input,
+.modal-create-lead .create-fields select,
+.modal-create-lead .create-fields-row input,
+.modal-create-lead .create-fields-row select {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e6e6e7;
+  border-radius: 8px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.modal-create-lead .create-fields select,
+.modal-create-lead .create-fields-row select {
+  appearance: none;
+  padding-right: 36px;
+  background-color: #fff;
+  background-image: url("/assets/chevron-down-sm.svg");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px 14px;
+  cursor: pointer;
+}
+
+.modal-create-lead .create-fields input:focus,
+.modal-create-lead .create-fields select:focus,
+.modal-create-lead .create-fields-row input:focus,
+.modal-create-lead .create-fields-row select:focus {
+  border-color: #146dff;
+}
+
+.modal-create-lead .create-fields input:disabled,
+.modal-create-lead .create-fields select:disabled,
+.modal-create-lead .create-fields-row input:disabled,
+.modal-create-lead .create-fields-row select:disabled {
+  background-color: #f3f3f4;
+  color: #6a6a70;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.modal-create-lead .create-country {
+  width: 100%;
+}
+
+.create-lead-page {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.create-lead-page-form {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.create-lead-page-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 32px 32px;
+}
+
+.create-lead-page-inner {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.create-lead-page-top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.create-lead-page-heading h1 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 22px;
+}
+
+.create-lead-page-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 32px;
+  border-top: 1px solid rgb(230 230 231 / 50%);
+  background: rgb(255 255 255 / 50%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 -4px 12px rgb(16 24 40 / 6%);
+}
+
+.create-lead-page-footer .btn {
+  height: 32px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.modal-create-lead .create-fields,
+.modal-create-lead .create-fields-row {
+  width: 100%;
+}
+
+.modal-create-lead .create-lead-stepper {
+  margin: 0;
+  width: 100%;
+}
+
+.modal-create-lead .create-lead-step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-create-lead .stepper-step.is-current:last-child {
+  background: #146dff;
+  color: #fff;
+}
+
+.modal-create-lead.create-lead-page-form .create-lead-page-footer,
+.modal-create-lead .modal-create-footer {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-create-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal-create-lead .create-lead-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.modal-create-lead .create-lead-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-create-lead .create-lead-section-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #262527;
+}
+
+.modal-create-lead .create-lead-section + .create-lead-section {
+  padding-top: 20px;
+  border-top: 1px solid #e6e6e7;
+}
+
+.modal-create-lead .create-company-card {
+  padding: 16px;
+  border: 1px solid #e6e6e7;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-create-lead .create-company-card .create-fields {
+  padding: 0;
+}
+
+.modal-create-lead .create-company-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid #f0f0f1;
+}
+
+.modal-create-lead .create-company-contacts > .create-section-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #262527;
+}
+
+.create-fields-section {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.create-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.create-section-head h3,
+.create-section-head h4,
+.create-contact-card h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #262527;
+}
+
+.create-section-empty {
+  margin: 0;
+  color: #6a6a70;
+  font-size: 13px;
+}
+
+.create-contact-card {
+  padding: 16px;
+  border: 1px solid #e6e6e7;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.company-modal-fields.kv-edit.create-contact-form-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 0;
+  gap: 16px 20px;
+}
+
+.create-contact-form-fields .contact-owner-affiliation-field {
+  grid-column: 1 / -1;
+}
+
+.create-contact-form-fields .create-contact-address {
+  grid-column: span 2;
+}
+
+/* Create a Lead only — not Create a Company (modal-create without -lead) */
+.modal-create-lead .create-contact-form-fields .edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #444446;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.modal-create-lead .create-contact-form-fields .edit-field input,
+.modal-create-lead .create-contact-form-fields .edit-select select {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e6e6e7;
+  border-radius: 8px;
+  outline: none;
+  width: 100%;
+}
+
+.modal-create-lead .create-contact-form-fields .edit-select select {
+  appearance: none;
+  padding-right: 36px;
+  background-color: #fff;
+  background-image: url("/assets/chevron-down-sm.svg");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px 14px;
 }
 
 .create-fields-row .create-field-span-2 select {
@@ -1034,6 +1339,66 @@ input[type="checkbox"]:checked::after {
 .create-country:not(:has(img)) select { padding-left: 12px; }
 
 .modal-create select { width: 100%; }
+
+.modal-create .create-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.modal-create .create-date-input-shell {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.modal-create .create-date-input-shell input {
+  width: 100%;
+  padding-right: 40px;
+  color: #262527;
+}
+
+.modal-create .create-date-input-hidden {
+  position: absolute;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal-create .create-date-input-trigger {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #6a6a70;
+  border-radius: 0 8px 8px 0;
+}
+
+.modal-create .create-date-input-trigger svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.modal-create .create-date-input-trigger:hover {
+  color: #444446;
+  background: #f7f7f8;
+}
+
+.modal-create .create-date-input-shell input:focus + .create-date-input-trigger {
+  color: #146dff;
+}
 
 tbody tr.is-open td { background: #eef5ff; }
 tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
@@ -2565,6 +2930,17 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
 }
 
 .lead-panel.is-page .kv-edit { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.edit-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.edit-field-label-text {
+  min-width: 0;
+}
 
 .edit-field {
   display: flex;

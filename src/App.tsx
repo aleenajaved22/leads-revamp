@@ -3,24 +3,31 @@ import {
   addressChoices,
   columns,
   emptyCompany,
+  emptyContact,
   filterGroups,
   initialLeads,
   officers,
   pageSizeOptions,
+  parentCompanyNames,
+  primaryVerticalOptions,
   parseDate,
+  propertyAffiliationOptions,
   type Assignee,
   type Column,
   type ColumnKey,
+  type Contact,
   type Lead,
   type Status,
 } from "./data";
+import { ContactFormFields } from "./ContactFormFields";
 import { LeadDetail } from "./LeadDetail";
 
 type SortKey = ColumnKey;
 type SortDir = "asc" | "desc";
 type Menu = "export" | "country" | "profile" | "notifications" | "sort" | "pageSize" | null;
 
-const createVerticals = ["Commercial", "Industrial", "Office", "Retail", "Healthcare", "Mixed Use"];
+const createLeadSteps = ["Property details", "Companies", "Contacts"] as const;
+
 const createStates = ["California", "Texas", "Delaware", "Illinois", "Ohio", "Florida", "New York", "Pennsylvania", "Tennessee"];
 const createCities = ["San Francisco", "Los Angeles", "Chicago", "Houston", "Austin", "Celina", "Santa Ana", "Pembroke Pines", "Toledo", "Naperville"];
 
@@ -29,9 +36,26 @@ function withCurrentOption(value: string, options: string[]) {
   return [value, ...options];
 }
 
+type CreateLeadCompanyDraft = {
+  id: string;
+  companyName: string;
+  parentCompany: string;
+  propertyAffiliation: string;
+  contacts: Contact[];
+};
+
+function emptyCreateCompanyDraft(): CreateLeadCompanyDraft {
+  return {
+    id: `draft-co-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    companyName: "",
+    parentCompany: "",
+    propertyAffiliation: "",
+    contacts: [],
+  };
+}
+
 function emptyCreateDraft() {
   return {
-    companyName: "",
     name: "",
     primaryVertical: "",
     address: "",
@@ -41,6 +65,7 @@ function emptyCreateDraft() {
     city: "",
     zipcode: "",
     status: "Raw" as Status,
+    companies: [emptyCreateCompanyDraft()],
   };
 }
 
@@ -110,12 +135,15 @@ function statusClass(status: Status) {
   return `badge badge-${status.toLowerCase().replace(/\s+/g, "-")}`;
 }
 
-function readLeadRoute(): { id: string | null; full: boolean } {
+function readLeadRoute(): { id: string | null; full: boolean; create: boolean } {
+  if (window.location.pathname === "/leads/new") {
+    return { id: null, full: false, create: true };
+  }
   const hashMatch = window.location.hash.match(/^#\/leads\/([^/]+)(\/full)?$/);
-  if (hashMatch) return { id: decodeURIComponent(hashMatch[1]), full: true };
+  if (hashMatch) return { id: decodeURIComponent(hashMatch[1]), full: true, create: false };
   const pathMatch = window.location.pathname.match(/^\/leads\/([^/]+)(\/full)?$/);
-  if (pathMatch) return { id: decodeURIComponent(pathMatch[1]), full: true };
-  return { id: null, full: false };
+  if (pathMatch) return { id: decodeURIComponent(pathMatch[1]), full: true, create: false };
+  return { id: null, full: false, create: false };
 }
 
 function leadValue(lead: Lead, key: ColumnKey) {
@@ -137,7 +165,7 @@ export default function App() {
   const [pageSize, setPageSize] = useState(15);
   const [menu, setMenu] = useState<Menu>(null);
   const [assignFor, setAssignFor] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createLeadStep, setCreateLeadStep] = useState(0);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(rearrangeOrder);
   const [hiddenColumns, setHiddenColumns] = useState<Set<ColumnKey>>(new Set());
@@ -174,7 +202,10 @@ export default function App() {
       if (event.key === "Escape") {
         setMenu(null);
         setAssignFor(null);
-        setCreateOpen(false);
+        if (window.location.pathname === "/leads/new") {
+          window.history.pushState({}, "", "/leads");
+          setRoute(readLeadRoute());
+        }
         setCustomizeOpen(false);
       }
     }
@@ -335,7 +366,7 @@ export default function App() {
     if (window.location.pathname !== path || window.location.hash) {
       window.history.pushState({ leadId: id }, "", path);
     }
-    setRoute({ id, full: Boolean(id) });
+    setRoute({ id, full: Boolean(id), create: false });
   }
 
   function openLeadPage(id: string) {
@@ -343,6 +374,17 @@ export default function App() {
   }
 
   function closeLead() {
+    navigateLead(null);
+  }
+
+  function openCreateLeadPage() {
+    setDraft(emptyCreateDraft());
+    setCreateLeadStep(0);
+    window.history.pushState({}, "", "/leads/new");
+    setRoute(readLeadRoute());
+  }
+
+  function closeCreateLeadPage() {
     navigateLead(null);
   }
 
@@ -416,6 +458,70 @@ export default function App() {
     reader.readAsText(file);
   }
 
+  function updateCreateCompany(companyId: string, patch: Partial<CreateLeadCompanyDraft>) {
+    setDraft((current) => ({
+      ...current,
+      companies: current.companies.map((company) =>
+        company.id === companyId ? { ...company, ...patch } : company,
+      ),
+    }));
+  }
+
+  function addCreateCompany() {
+    setDraft((current) => ({
+      ...current,
+      companies: [...current.companies, emptyCreateCompanyDraft()],
+    }));
+  }
+
+  function removeCreateCompany(companyId: string) {
+    setDraft((current) => ({
+      ...current,
+      companies: current.companies.filter((company) => company.id !== companyId),
+    }));
+  }
+
+  function updateCreateCompanyContact(companyId: string, contactId: string, patch: Partial<Contact>) {
+    setDraft((current) => ({
+      ...current,
+      companies: current.companies.map((company) =>
+        company.id === companyId
+          ? {
+              ...company,
+              contacts: company.contacts.map((contact) =>
+                contact.id === contactId ? { ...contact, ...patch } : contact,
+              ),
+            }
+          : company,
+      ),
+    }));
+  }
+
+  function addCreateCompanyContact(companyId: string) {
+    setDraft((current) => ({
+      ...current,
+      companies: current.companies.map((company) =>
+        company.id === companyId
+          ? {
+              ...company,
+              contacts: [...company.contacts, { ...emptyContact(), id: `ct-${Date.now()}` }],
+            }
+          : company,
+      ),
+    }));
+  }
+
+  function removeCreateCompanyContact(companyId: string, contactId: string) {
+    setDraft((current) => ({
+      ...current,
+      companies: current.companies.map((company) =>
+        company.id === companyId
+          ? { ...company, contacts: company.contacts.filter((contact) => contact.id !== contactId) }
+          : company,
+      ),
+    }));
+  }
+
   function applyAddress(address: string) {
     const match = addressChoices(leads).find((item) => item.address === address);
     setDraft((current) => ({
@@ -429,10 +535,34 @@ export default function App() {
     }));
   }
 
+  function isCreateLeadPropertyStepValid() {
+    return [
+      draft.primaryVertical,
+      draft.address.trim(),
+      draft.country,
+      draft.county.trim(),
+      draft.state,
+      draft.city,
+      draft.zipcode.trim(),
+    ].every(Boolean);
+  }
+
+  function isCreateLeadCompaniesStepValid() {
+    return draft.companies.some((company) => company.companyName.trim());
+  }
+
+  function goToNextCreateLeadStep() {
+    if (createLeadStep === 0 && !isCreateLeadPropertyStepValid()) return;
+    if (createLeadStep === 1 && !isCreateLeadCompaniesStepValid()) return;
+    setCreateLeadStep((step) => Math.min(step + 1, createLeadSteps.length - 1));
+  }
+
+  function goToPreviousCreateLeadStep() {
+    setCreateLeadStep((step) => Math.max(step - 1, 0));
+  }
+
   function createLead() {
-    const companyName = draft.companyName.trim();
-    const required = [
-      companyName,
+    const propertyRequired = [
       draft.primaryVertical,
       draft.address.trim(),
       draft.country,
@@ -441,10 +571,15 @@ export default function App() {
       draft.city,
       draft.zipcode.trim(),
     ];
-    if (required.some((value) => !value)) return;
-    const propertyName = draft.name.trim() || companyName;
+    if (propertyRequired.some((value) => !value)) return;
+    const namedCompanies = draft.companies.filter((company) => company.companyName.trim());
+    if (namedCompanies.length === 0) return;
+
+    const leadId = Date.now();
+    const firstCompanyName = namedCompanies[0]?.companyName.trim() ?? "";
+    const propertyName = draft.name.trim() || firstCompanyName;
     const lead: Lead = {
-      id: `new-${Date.now()}`,
+      id: `new-${leadId}`,
       name: propertyName,
       zipcode: draft.zipcode.trim(),
       city: draft.city,
@@ -470,22 +605,24 @@ export default function App() {
       loadingDocks: "N/A",
       parkingSpaces: "N/A",
       validation: "Validation In Process",
-      companies: [
-        {
-          ...emptyCompany(),
-          id: `c-${Date.now()}`,
-          name: companyName,
-          status: "Cleaned",
-        },
-      ],
+      companies: namedCompanies.map((company, index) => ({
+        ...emptyCompany(),
+        id: `c-${leadId}-${index}`,
+        name: company.companyName.trim(),
+        parentCompany: company.parentCompany.trim() || undefined,
+        propertyAffiliation: company.propertyAffiliation,
+        contacts: company.contacts,
+        status: "Cleaned" as Status,
+      })),
     };
     setLeads((current) => [lead, ...current]);
     setPage(1);
     setDraft(emptyCreateDraft());
-    setCreateOpen(false);
+    openLeadPage(lead.id);
   }
 
-  const openLead = leads.find((lead) => lead.id === openLeadId) ?? null;
+  const isCreateLeadPage = route.create;
+  const openLead = !isCreateLeadPage && openLeadId ? (leads.find((lead) => lead.id === openLeadId) ?? null) : null;
 
   const leadDetail = openLead && (
     <LeadDetail
@@ -593,7 +730,285 @@ export default function App() {
 
       {openLead && leadDetail}
 
-      {!openLead && (
+      {isCreateLeadPage && (
+        <div className="create-lead-page">
+          <form
+            className="create-lead-page-form modal-create-lead"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (createLeadStep === createLeadSteps.length - 1) createLead();
+            }}
+          >
+            <div className="create-lead-page-scroll">
+              <div className="create-lead-page-inner">
+              <div className="create-lead-page-top">
+                <button type="button" className="property-back" onClick={closeCreateLeadPage}>
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M10 3.5 5.5 8 10 12.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Back
+                </button>
+                <div className="create-lead-page-heading">
+                  <h1>Create a Lead</h1>
+                  <p className="modal-create-helper">Enter the details below to create a new lead</p>
+                </div>
+              </div>
+              <ol className="stepper create-lead-stepper" aria-label="Create a lead steps">
+                {createLeadSteps.map((label, index) => {
+                  const state = index < createLeadStep ? "done" : index === createLeadStep ? "current" : "upcoming";
+                  return (
+                    <li
+                      key={label}
+                      className={`stepper-step is-${state}`}
+                      aria-current={state === "current" ? "step" : undefined}
+                    >
+                      <span className="stepper-title">{label}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+              <div className="create-lead-step-panel">
+                {createLeadStep === 0 && (
+                <section className="create-lead-section">
+                  <div className="create-fields">
+                    <div className="create-fields-row">
+                      <label className="create-field-span-2">
+                        <span>Property Address <span className="req">*</span></span>
+                        <select
+                          value={draft.address}
+                          required
+                          onChange={(event) => applyAddress(event.target.value)}
+                        >
+                          <option value="">Enter Property Address</option>
+                          {addressChoices(leads).map((option) => (
+                            <option key={option.address} value={option.address}>
+                              {option.address}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Property Name</span>
+                        <input
+                          value={draft.name}
+                          placeholder="Enter Property Name"
+                          onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                        />
+                      </label>
+                    </div>
+                    <div className="create-fields-row">
+                      <label>
+                        <span>Primary Vertical <span className="req">*</span></span>
+                        <select
+                          value={draft.primaryVertical}
+                          required
+                          onChange={(event) => setDraft({ ...draft, primaryVertical: event.target.value })}
+                        >
+                          <option value="">Primary Vertical</option>
+                          {primaryVerticalOptions.map((option) => (
+                            <option key={option}>{option}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Country <span className="req">*</span></span>
+                        <span className="create-country">
+                          {draft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
+                          <select value={draft.country} required disabled>
+                            <option value="">Country</option>
+                            <option>United States</option>
+                          </select>
+                        </span>
+                      </label>
+                      <label>
+                        <span>County <span className="req">*</span></span>
+                        <input value={draft.county} placeholder="Enter County" required disabled readOnly />
+                      </label>
+                    </div>
+                    <div className="create-fields-row">
+                      <label>
+                        <span>State <span className="req">*</span></span>
+                        <select value={draft.state} required disabled>
+                          <option value="">State</option>
+                          {withCurrentOption(draft.state, createStates).map((option) => (
+                            <option key={option}>{option}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>City <span className="req">*</span></span>
+                        <select value={draft.city} required disabled>
+                          <option value="">City</option>
+                          {withCurrentOption(draft.city, createCities).map((option) => (
+                            <option key={option}>{option}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Zip/Postal Code <span className="req">*</span></span>
+                        <input
+                          value={draft.zipcode}
+                          placeholder="Enter Zip/Postal Code"
+                          required
+                          disabled
+                          readOnly
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </section>
+                )}
+
+                {createLeadStep === 1 && (
+                <section className="create-lead-section">
+                  <div className="create-section-head">
+                    <h3 className="create-lead-section-title">Companies ({draft.companies.length})</h3>
+                    <button type="button" className="btn btn-sm btn-ghost-primary" onClick={addCreateCompany}>
+                      + Add Company
+                    </button>
+                  </div>
+                  {draft.companies.map((company, companyIndex) => (
+                    <div className="create-company-card" key={company.id}>
+                      <div className="create-section-head">
+                        <h4>Company {companyIndex + 1}</h4>
+                        {draft.companies.length > 1 && (
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => removeCreateCompany(company.id)}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <div className="create-fields">
+                        <label className="create-field-full">
+                          <span>Company Name <span className="req">*</span></span>
+                          <input
+                            value={company.companyName}
+                            placeholder="Company Name"
+                            required={companyIndex === 0}
+                            onChange={(event) =>
+                              updateCreateCompany(company.id, { companyName: event.target.value })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>Parent Company</span>
+                          <select
+                            value={company.parentCompany}
+                            onChange={(event) =>
+                              updateCreateCompany(company.id, { parentCompany: event.target.value })
+                            }
+                          >
+                            <option value="">Select Parent Company</option>
+                            {parentCompanyNames(leads).map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>Company Affiliation</span>
+                          <select
+                            value={company.propertyAffiliation}
+                            onChange={(event) =>
+                              updateCreateCompany(company.id, { propertyAffiliation: event.target.value })
+                            }
+                          >
+                            <option value="">Select Company Affiliation</option>
+                            {propertyAffiliationOptions.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+                )}
+
+                {createLeadStep === 2 && (
+                <section className="create-lead-section">
+                  {draft.companies
+                    .filter((company) => company.companyName.trim())
+                    .map((company, companyIndex) => (
+                    <div className="create-company-card" key={company.id}>
+                      <div className="create-section-head">
+                        <h4>{company.companyName.trim() || `Company ${companyIndex + 1}`}</h4>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost-primary"
+                          onClick={() => addCreateCompanyContact(company.id)}
+                        >
+                          + Add Contact
+                        </button>
+                      </div>
+                      {company.contacts.length === 0 && (
+                        <p className="create-section-empty">No contacts added yet.</p>
+                      )}
+                      {company.contacts.map((contact, contactIndex) => (
+                        <div className="create-contact-card" key={contact.id}>
+                          <div className="create-section-head">
+                            <h4>Contact {contactIndex + 1}</h4>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => removeCreateCompanyContact(company.id, contact.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <ContactFormFields
+                            contact={contact}
+                            layout="create"
+                            onPatch={(patch) => updateCreateCompanyContact(company.id, contact.id, patch)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </section>
+                )}
+              </div>
+              </div>
+            </div>
+            <div className="create-lead-page-footer">
+              <button type="button" className="btn" onClick={closeCreateLeadPage}>
+                Cancel
+              </button>
+              <div className="modal-create-footer-actions">
+                {createLeadStep > 0 && (
+                  <button type="button" className="btn" onClick={goToPreviousCreateLeadStep}>
+                    Back
+                  </button>
+                )}
+                {createLeadStep < createLeadSteps.length - 1 ? (
+                  <button type="button" className="btn btn-primary" onClick={goToNextCreateLeadStep}>
+                    Next
+                  </button>
+                ) : (
+                  <button type="submit" className="btn btn-primary">
+                    Create a Lead
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {!openLead && !isCreateLeadPage && (
       <>
       <div className="page-header">
         <h1>Leads</h1>
@@ -635,7 +1050,7 @@ export default function App() {
               event.target.value = "";
             }}
           />
-          <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+          <button type="button" className="btn btn-primary" onClick={openCreateLeadPage}>
             <Icon src="/assets/icon-plus.svg" alt="" />
             Create a Lead
           </button>
@@ -1077,114 +1492,6 @@ export default function App() {
               </div>
             </div>
           </aside>
-        </div>
-      )}
-
-      {createOpen && (
-        <div className="modal-backdrop" onClick={() => setCreateOpen(false)}>
-          <form
-            className="modal modal-create"
-            onClick={(event) => event.stopPropagation()}
-            onSubmit={(event) => {
-              event.preventDefault();
-              createLead();
-            }}
-          >
-            <div className="modal-create-scroll">
-              <h2>Create a Lead</h2>
-              <div className="create-fields">
-              <label>
-                <span>Company Name <span className="req">*</span></span>
-                <input
-                  value={draft.companyName}
-                  placeholder="Company Name"
-                  required
-                  onChange={(event) => setDraft({ ...draft, companyName: event.target.value })}
-                />
-              </label>
-              <div className="create-fields-row">
-                <label className="create-field-span-2">
-                  <span>Property Address <span className="req">*</span></span>
-                  <select
-                    value={draft.address}
-                    required
-                    onChange={(event) => applyAddress(event.target.value)}
-                  >
-                    <option value="">Enter Property Address</option>
-                    {addressChoices(leads).map((option) => (
-                      <option key={option.address} value={option.address}>{option.address}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Property Name</span>
-                  <input
-                    value={draft.name}
-                    placeholder="Enter Property Name"
-                    onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                  />
-                </label>
-              </div>
-              <label>
-                <span>Primary Vertical <span className="req">*</span></span>
-                <select
-                  value={draft.primaryVertical}
-                  required
-                  onChange={(event) => setDraft({ ...draft, primaryVertical: event.target.value })}
-                >
-                  <option value="">Primary Vertical</option>
-                  {createVerticals.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Country <span className="req">*</span></span>
-                <span className="create-country">
-                  {draft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
-                  <select value={draft.country} required disabled>
-                    <option value="">Country</option>
-                    <option>United States</option>
-                  </select>
-                </span>
-              </label>
-              <label>
-                <span>County <span className="req">*</span></span>
-                <input value={draft.county} placeholder="Enter County" required disabled readOnly />
-              </label>
-              <label>
-                <span>State <span className="req">*</span></span>
-                <select value={draft.state} required disabled>
-                  <option value="">State</option>
-                  {withCurrentOption(draft.state, createStates).map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>City <span className="req">*</span></span>
-                <select value={draft.city} required disabled>
-                  <option value="">City</option>
-                  {withCurrentOption(draft.city, createCities).map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Zip/Postal Code <span className="req">*</span></span>
-                <input value={draft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
-              </label>
-              </div>
-            </div>
-            <div className="modal-actions modal-create-footer">
-              <button type="button" className="btn" onClick={() => setCreateOpen(false)}>
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary">
-                Create a Lead
-              </button>
-            </div>
-          </form>
         </div>
       )}
     </div>
