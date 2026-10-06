@@ -795,6 +795,7 @@ input[type="checkbox"]:checked::after {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding-bottom: 16px;
 }
 
 .modal-create .modal-actions,
@@ -936,6 +937,7 @@ input[type="checkbox"]:checked::after {
   font-weight: 400;
   line-height: 20px;
   color: #6a6a70;
+  white-space: nowrap;
 }
 
 .toast-notification-close {
@@ -1211,7 +1213,7 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
 .property-more-archive { color: #e11d2e; }
 .property-more-archive:hover { color: #b42318; background: #fef3f2; }
 
-.confirm-modal { position: relative; width: min(440px, calc(100vw - 48px)); }
+.confirm-modal { position: relative; width: min(520px, calc(100vw - 48px)); }
 
 .confirm-close {
   position: absolute;
@@ -1238,11 +1240,19 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
 
 .confirm-icon.is-archive { background: #fdecec; color: #e11d2e; }
 .confirm-icon.is-enrich { background: #e8f1ff; color: #146dff; }
+.confirm-icon.is-warning { background: #fef0c7; color: #dc6803; }
 
-.confirm-modal h2 { margin: 0 0 8px; }
+.confirm-modal-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
 
-.confirm-modal p {
-  margin: 0 0 8px;
+.confirm-modal-copy h2 { margin: 0; }
+
+.confirm-modal-copy p {
+  margin: 0;
   color: #5b5b5f;
   font-size: 14px;
   font-weight: 400;

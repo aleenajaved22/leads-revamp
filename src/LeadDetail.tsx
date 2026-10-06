@@ -1378,7 +1378,7 @@ export function LeadDetail({
   const [propertyFactsExpanded, setPropertyFactsExpanded] = useState(false);
   const [companyQuery, setCompanyQuery] = useState("");
   const [propertyMenuOpen, setPropertyMenuOpen] = useState(false);
-  const [leadConfirm, setLeadConfirm] = useState<"archive" | "enrich" | null>(null);
+  const [leadConfirm, setLeadConfirm] = useState<"archive" | "enrich" | "unsavedBack" | null>(null);
   const [createParentOpen, setCreateParentOpen] = useState(false);
   const [parentDraft, setParentDraft] = useState(emptyParentDraft);
   const [activeErrorId, setActiveErrorId] = useState<string | null>(null);
@@ -1845,6 +1845,20 @@ export function LeadDetail({
     setLeadConfirm(null);
   }
 
+  function handleBackClick() {
+    if (companyHasEdits) {
+      setLeadConfirm("unsavedBack");
+      return;
+    }
+    onBack();
+  }
+
+  function confirmLeaveWithoutSaving() {
+    cancelCompanyEdits();
+    setLeadConfirm(null);
+    onBack();
+  }
+
   const tenancyValue = lead.tenancy.trim() && lead.tenancy !== "N/A" ? tenancyLabel(lead.tenancy) : "";
 
   return (
@@ -1855,7 +1869,7 @@ export function LeadDetail({
           <div className="property-details">
         <header className="property-banner">
           <div className="property-banner-top">
-            <button type="button" className="property-back" onClick={onBack}>
+            <button type="button" className="property-back" onClick={handleBackClick}>
               <svg viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M10 3.5 5.5 8 10 12.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -2477,7 +2491,7 @@ export function LeadDetail({
       <Toast
         open={companyUpdateToastOpen}
         title="Changes Updated!"
-        description="Your company changes have been saved successfully."
+        description="Your changes have been saved successfully."
         onClose={() => setCompanyUpdateToastOpen(false)}
       />
 
@@ -2493,12 +2507,38 @@ export function LeadDetail({
             <button type="button" className="icon-button confirm-close" aria-label="Close" onClick={() => setLeadConfirm(null)}>
               ×
             </button>
-            <span className={leadConfirm === "archive" ? "confirm-icon is-archive" : "confirm-icon is-enrich"} aria-hidden="true">
+            <span
+              className={
+                leadConfirm === "archive"
+                  ? "confirm-icon is-archive"
+                  : leadConfirm === "unsavedBack"
+                    ? "confirm-icon is-warning"
+                    : "confirm-icon is-enrich"
+              }
+              aria-hidden="true"
+            >
               {leadConfirm === "archive" ? (
                 <svg viewBox="0 0 16 16">
                   <path d="M2.25 3.25h11.5v2.1H2.25z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
                   <path d="M3.15 5.35h9.7V12.2a.7.7 0 0 1-.7.7H3.85a.7.7 0 0 1-.7-.7V5.35z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
                   <path d="M6.2 8.35h3.6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+              ) : leadConfirm === "unsavedBack" ? (
+                <svg viewBox="0 0 16 16">
+                  <path
+                    d="M8 5.2v3.4M8 11.2h.01"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M8 1.8 14.2 13H1.8L8 1.8z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               ) : (
                 <svg viewBox="0 0 16 16">
@@ -2506,22 +2546,34 @@ export function LeadDetail({
                 </svg>
               )}
             </span>
-            <h2 id="lead-confirm-title">{leadConfirm === "archive" ? "Archive Lead" : "Mark as Enriched"}</h2>
-            <p>
-              {leadConfirm === "archive"
-                ? "Are you sure you want to archive this lead?"
-                : "Are you sure you want to mark this lead as enriched?"}
-            </p>
+            <div className="confirm-modal-copy">
+              <h2 id="lead-confirm-title">
+                {leadConfirm === "archive"
+                  ? "Archive Lead"
+                  : leadConfirm === "unsavedBack"
+                    ? "Leave without saving?"
+                    : "Mark as Enriched"}
+              </h2>
+              <p>
+                {leadConfirm === "archive"
+                  ? "Are you sure you want to archive this lead?"
+                  : leadConfirm === "unsavedBack"
+                    ? "Your updates have not been saved. If you leave now, your changes will be discarded."
+                    : "Are you sure you want to mark this lead as enriched?"}
+              </p>
+            </div>
             <div className="modal-actions">
               <button type="button" className="btn" onClick={() => setLeadConfirm(null)}>
                 Cancel
               </button>
               <button
                 type="button"
-                className={leadConfirm === "archive" ? "btn btn-danger" : "btn btn-primary"}
-                onClick={confirmLeadAction}
+                className={
+                  leadConfirm === "archive" ? "btn btn-danger" : "btn btn-primary"
+                }
+                onClick={leadConfirm === "unsavedBack" ? confirmLeaveWithoutSaving : confirmLeadAction}
               >
-                {leadConfirm === "archive" ? "Archive" : "Mark as Enriched"}
+                {leadConfirm === "archive" ? "Archive" : leadConfirm === "unsavedBack" ? "Leave" : "Mark as Enriched"}
               </button>
             </div>
           </div>
