@@ -28,6 +28,8 @@ import { Toast } from "./Toast";
 import {
   addressChoices,
   companyStatusClass,
+  contactPatchFromAddressChoice,
+  isKnownAddressChoice,
   type AddressChoice,
   emptyCompany,
   emptyContact,
@@ -118,6 +120,13 @@ function propertyAddressOptions(leads: Lead[], currentAddress: string) {
     return [{ address: trimmed, country: "", county: "", state: "", city: "", zipcode: "" }, ...list];
   }
   return list;
+}
+
+function contactAddressOptions(leads: Lead[], currentAddress: string) {
+  return withCurrentOption(
+    currentAddress.trim(),
+    addressChoices(leads).map((option) => option.address),
+  );
 }
 
 function emptyParentDraft() {
@@ -2473,7 +2482,10 @@ export function LeadDetail({
                         <p className="panel-empty">No contacts for this company yet.</p>
                       )}
                       <div className="contact-grid">
-                        {selected.contacts.map((contact) => (
+                        {selected.contacts.map((contact) => {
+                          const contactLocationFromAddress = isKnownAddressChoice(leads, contact.address);
+
+                          return (
                           <article key={contact.id} className="contact-card">
                             <div className="contact-card-head">
                               <span className="contact-initials" aria-hidden="true">
@@ -2570,9 +2582,13 @@ export function LeadDetail({
                                 label="Address"
                                 value={contact.address}
                                 emptyLabel="Add Address"
-                                onCommit={(value) => updateContact(contact.id, { address: value })}
+                                options={contactAddressOptions(leads, contact.address)}
+                                onCommit={(value) =>
+                                  updateContact(contact.id, contactPatchFromAddressChoice(leads, value))
+                                }
                               />
                               <InlineField
+                                disabled={contactLocationFromAddress}
                                 label="Country"
                                 value={countryLabel(contact.country)}
                                 emptyLabel="Select Country"
@@ -2583,6 +2599,7 @@ export function LeadDetail({
                             </div>
                             <div className="contact-card-row contact-card-row-2">
                               <InlineField
+                                disabled={contactLocationFromAddress}
                                 label="State"
                                 value={fieldValue(contact.state)}
                                 emptyLabel="Select State"
@@ -2590,6 +2607,7 @@ export function LeadDetail({
                                 onCommit={(value) => updateContact(contact.id, { state: value })}
                               />
                               <InlineField
+                                disabled={contactLocationFromAddress}
                                 label="City"
                                 value={fieldValue(contact.city)}
                                 emptyLabel="Select City"
@@ -2599,6 +2617,7 @@ export function LeadDetail({
                             </div>
                             <div className="contact-card-row contact-card-row-2">
                               <InlineField
+                                disabled={contactLocationFromAddress}
                                 label="Zip / Postal Code"
                                 value={contact.zipcode}
                                 emptyLabel="Add Zip / Postal Code"
@@ -2606,7 +2625,8 @@ export function LeadDetail({
                               />
                             </div>
                           </article>
-                        ))}
+                          );
+                        })}
                         <button
                           type="button"
                           className="contact-add"
@@ -2945,7 +2965,9 @@ export function LeadDetail({
               <label>
                 <span>Country <span className="req">*</span></span>
                 <span className="create-country">
-                  {parentDraft.country === "United States" && <img src="/assets/flag-usa.png" alt="" />}
+                  {parentDraft.country === "United States" && (
+                    <img className="inline-field-flag" src="/assets/flag-usa.png" alt="" />
+                  )}
                   <select value={parentDraft.country} required disabled>
                     <option value="">Country</option>
                     {propertyCountries.map((option) => (

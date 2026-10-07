@@ -22,6 +22,7 @@ import {
   type CreateLeadCompanyDraft,
 } from "./CreateLeadInlineSections";
 import { LeadDetail } from "./LeadDetail";
+import { Toast } from "./Toast";
 
 type SortKey = ColumnKey;
 type SortDir = "asc" | "desc";
@@ -193,7 +194,8 @@ export default function App() {
   const [selectedCreateCompanyId, setSelectedCreateCompanyId] = useState<string | null>(
     () => emptyCreateDraft().companies[0]?.id ?? null,
   );
-  const [createLeadError, setCreateLeadError] = useState<string | null>(null);
+  const [createLeadValidationToastOpen, setCreateLeadValidationToastOpen] = useState(false);
+  const [createLeadValidationToastDescription, setCreateLeadValidationToastDescription] = useState("");
   const createLeadPropertyRef = useRef<HTMLElement | null>(null);
   const createLeadCompaniesRef = useRef<HTMLElement | null>(null);
   const [customizeOpen, setCustomizeOpen] = useState(false);
@@ -411,7 +413,7 @@ export default function App() {
     const nextDraft = emptyCreateDraft();
     setDraft(nextDraft);
     setSelectedCreateCompanyId(nextDraft.companies[0]?.id ?? null);
-    setCreateLeadError(null);
+    setCreateLeadValidationToastOpen(false);
     window.history.pushState({}, "", "/leads/new");
     setRoute(readLeadRoute());
   }
@@ -618,16 +620,20 @@ export default function App() {
 
   function submitCreateLead() {
     if (!isCreateLeadPropertyValid()) {
-      setCreateLeadError("Complete all required property fields (marked with *).");
+      setCreateLeadValidationToastDescription("Complete all required property fields (marked with *).");
+      setCreateLeadValidationToastOpen(true);
       createLeadPropertyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (!isCreateLeadCompaniesValid()) {
-      setCreateLeadError("Complete all required company and contact fields (marked with *).");
+      setCreateLeadValidationToastDescription(
+        "Complete all required company and contact fields (marked with *).",
+      );
+      setCreateLeadValidationToastOpen(true);
       createLeadCompaniesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    setCreateLeadError(null);
+    setCreateLeadValidationToastOpen(false);
     createLead();
   }
 
@@ -824,11 +830,6 @@ export default function App() {
                   </p>
                 </div>
               </div>
-              {createLeadError ? (
-                <div className="create-lead-form-error" role="alert">
-                  {createLeadError}
-                </div>
-              ) : null}
               <div className="create-lead-body">
                 <aside className="create-lead-property-column property-column" ref={createLeadPropertyRef}>
                   <div className="property-column-scroll">
@@ -991,6 +992,13 @@ export default function App() {
               </div>
             </div>
           </form>
+          <Toast
+            variant="error"
+            open={createLeadValidationToastOpen}
+            title="Missing required fields"
+            description={createLeadValidationToastDescription}
+            onClose={() => setCreateLeadValidationToastOpen(false)}
+          />
         </div>
       )}
 

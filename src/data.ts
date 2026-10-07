@@ -196,6 +196,35 @@ export function addressChoices(leads: Pick<Lead, "address" | "country" | "county
   return choices;
 }
 
+export function isKnownAddressChoice(
+  leads: Pick<Lead, "address" | "country" | "county" | "state" | "city" | "zipcode">[],
+  address: string,
+) {
+  const trimmed = address.trim();
+  return Boolean(trimmed && addressChoices(leads).some((item) => item.address === trimmed));
+}
+
+export function contactPatchFromAddressChoice(
+  leads: Pick<Lead, "address" | "country" | "county" | "state" | "city" | "zipcode">[],
+  address: string,
+): Pick<Contact, "address" | "country" | "state" | "city" | "zipcode"> {
+  const match = addressChoices(leads).find((item) => item.address === address);
+  const countryRaw = match?.country?.trim() ?? "";
+  const country =
+    !countryRaw || countryRaw === "N/A"
+      ? ""
+      : countryRaw === "United States" || countryRaw === "US" || countryRaw === "USA"
+        ? "US"
+        : countryRaw;
+  return {
+    address,
+    country,
+    state: match?.state && match.state !== "N/A" ? match.state : "",
+    city: match?.city && match.city !== "N/A" ? match.city : "",
+    zipcode: match?.zipcode && match.zipcode !== "N/A" ? match.zipcode : "",
+  };
+}
+
 export type ColumnKey =
   | Exclude<keyof Lead, "id" | "assignee" | "companies" | "archived" | "floorCount">
   | "assignee";

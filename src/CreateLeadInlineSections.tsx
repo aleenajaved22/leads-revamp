@@ -1,5 +1,7 @@
 import {
   addressChoices,
+  contactPatchFromAddressChoice,
+  isKnownAddressChoice,
   parentCompanyNames,
   primaryVerticalOptions,
   propertyAffiliationOptions,
@@ -288,6 +290,8 @@ export function CreateLeadCompanyDetailSections({
   onRemoveContact: (contactId: string) => void;
   onUpdateContact: (contactId: string, patch: Partial<Contact>) => void;
 }) {
+  const contactAddressOptions = addressChoices(leads).map((option) => option.address);
+
   return (
     <>
       <section className="company-detail-section">
@@ -370,7 +374,10 @@ export function CreateLeadCompanyDetailSections({
           Contacts ({company.contacts.length})
         </h3>
         <div className="contact-grid">
-          {company.contacts.map((contact) => (
+          {company.contacts.map((contact) => {
+            const contactLocationFromAddress = isKnownAddressChoice(leads, contact.address);
+
+            return (
             <article key={contact.id} className="contact-card">
               <div className="contact-card-head">
                 <span className="contact-initials" aria-hidden="true">
@@ -457,7 +464,6 @@ export function CreateLeadCompanyDetailSections({
                   onCommit={(phone) => onUpdateContact(contact.id, { phone })}
                 />
                 <InlineField
-                  required
                   label="Cell Number"
                   value={contact.cell}
                   emptyLabel="Add Cell Number"
@@ -471,10 +477,14 @@ export function CreateLeadCompanyDetailSections({
                   label="Address"
                   value={contact.address}
                   emptyLabel="Add Address"
-                  onCommit={(address) => onUpdateContact(contact.id, { address })}
+                  options={withCurrentOption(contact.address, contactAddressOptions)}
+                  onCommit={(address) =>
+                    onUpdateContact(contact.id, contactPatchFromAddressChoice(leads, address))
+                  }
                 />
                 <InlineField
                   required
+                  disabled={contactLocationFromAddress}
                   label="Country"
                   value={countryLabel(contact.country)}
                   emptyLabel="Select Country"
@@ -486,6 +496,7 @@ export function CreateLeadCompanyDetailSections({
               <div className="contact-card-row contact-card-row-2">
                 <InlineField
                   required
+                  disabled={contactLocationFromAddress}
                   label="State"
                   value={fieldValue(contact.state)}
                   emptyLabel="Select State"
@@ -494,6 +505,7 @@ export function CreateLeadCompanyDetailSections({
                 />
                 <InlineField
                   required
+                  disabled={contactLocationFromAddress}
                   label="City"
                   value={fieldValue(contact.city)}
                   emptyLabel="Select City"
@@ -504,6 +516,7 @@ export function CreateLeadCompanyDetailSections({
               <div className="contact-card-row contact-card-row-2">
                 <InlineField
                   required
+                  disabled={contactLocationFromAddress}
                   label="Zip / Postal Code"
                   value={contact.zipcode}
                   emptyLabel="Add Zip / Postal Code"
@@ -511,7 +524,8 @@ export function CreateLeadCompanyDetailSections({
                 />
               </div>
             </article>
-          ))}
+            );
+          })}
           <button type="button" className="contact-add" onClick={onAddContact}>
             <span className="contact-add-icon" aria-hidden="true">
               <svg viewBox="0 0 16 16">
