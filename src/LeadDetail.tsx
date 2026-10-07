@@ -50,20 +50,20 @@ const companyFields: {
   placeholder?: string;
   kind?: "phone" | "date";
 }[] = [
-  { key: "name", label: "Company Name", placeholder: "Enter Company Name" },
-  { key: "secondaryVertical", label: "Secondary Vertical", placeholder: "Enter Secondary Vertical" },
+  { key: "name", label: "Company Name", placeholder: "Add Company Name" },
+  { key: "secondaryVertical", label: "Secondary Vertical", placeholder: "Add Secondary Vertical" },
   { key: "phone", label: "Phone Number", placeholder: "+1 800 567 8905", kind: "phone" },
-  { key: "employees", label: "No. of Employees", placeholder: "Enter No. of Employees" },
-  { key: "naics", label: "NAICS", placeholder: "Enter NAICS" },
-  { key: "revenue", label: "Revenue", placeholder: "Enter Revenue" },
-  { key: "website", label: "Website URL", placeholder: "Enter Website URL" },
-  { key: "emailDomain", label: "Email Domain", placeholder: "Enter Email Domain" },
+  { key: "employees", label: "No. of Employees", placeholder: "Add No. of Employees" },
+  { key: "naics", label: "NAICS", placeholder: "Add NAICS" },
+  { key: "revenue", label: "Revenue", placeholder: "Add Revenue" },
+  { key: "website", label: "Website URL", placeholder: "Add Website URL" },
+  { key: "emailDomain", label: "Email Domain", placeholder: "Add Email Domain" },
 ];
 
 const occupancyFields: { key: keyof Company; label: string; placeholder?: string }[] = [
-  { key: "floor", label: "Floor", placeholder: "Enter Floor" },
-  { key: "suite", label: "Suite / Unit / Apartment", placeholder: "Enter Suite / Unit / Apartment" },
-  { key: "occupiedArea", label: "Occupied Area (sq ft)", placeholder: "Enter Occupied Area" },
+  { key: "floor", label: "Floor", placeholder: "Add Floor" },
+  { key: "suite", label: "Suite / Unit / Apartment", placeholder: "Add Suite / Unit / Apartment" },
+  { key: "occupiedArea", label: "Occupied Area (sq ft)", placeholder: "Add Occupied Area" },
 ];
 
 const occupancyDateFields: { key: "effectiveDate" | "tillDate"; label: string; labelHint: string }[] = [
@@ -248,7 +248,7 @@ function countCompanyChanges(current: Company, baseline: Company) {
 }
 
 const workflow = [
-  { status: "Raw" as Status, label: "Raw Data" },
+  { status: "Raw" as Status, label: "Raw" },
   { status: "Cleaned" as Status, label: "Cleaned" },
   { status: "Enriched" as Status, label: "Enriched" },
 ];
@@ -1079,7 +1079,15 @@ function LabelInfoHint({ text }: { text: string }) {
   );
 }
 
-function InlineField({
+export function RequiredFieldMark() {
+  return (
+    <span className="kv-label-required" title="Required">
+      *
+    </span>
+  );
+}
+
+export function InlineField({
   label,
   value,
   options,
@@ -1089,6 +1097,7 @@ function InlineField({
   suffix,
   hideLabel,
   invalid,
+  required,
   anchorId,
   tone,
   inputType = "text",
@@ -1103,6 +1112,7 @@ function InlineField({
   suffix?: ReactNode;
   hideLabel?: boolean;
   invalid?: boolean;
+  required?: boolean;
   anchorId?: string;
   tone?: "parent";
   inputType?: "text" | "date";
@@ -1147,6 +1157,8 @@ function InlineField({
           "kv-row inline-field",
           fieldEditing ? "is-editing" : "",
           invalid ? "is-error" : "",
+          required ? "is-required" : "",
+          hideLabel ? "is-label-hidden" : "",
           tone === "parent" ? "is-parent" : "",
         ]
           .filter(Boolean)
@@ -1156,10 +1168,12 @@ function InlineField({
       {!hideLabel && (
         <span className="kv-label">
           <span className="kv-label-text">{label}</span>
+          {required ? <RequiredFieldMark /> : null}
           {labelHint ? <LabelInfoHint text={labelHint} /> : null}
         </span>
       )}
       <div className="kv-value">
+      {hideLabel && required && isEmpty ? <RequiredFieldMark /> : null}
       {hasChoices ? (
         <div className={`inline-field-editor${prefix ? " inline-field-editor-with-prefix" : ""}`}>
           {prefix}
@@ -1380,7 +1394,7 @@ function ParentCompanyField({
           <SearchableSelectControl
             open={open}
             value={value}
-            placeholder="Enter Parent Company"
+            placeholder="Add Parent Company"
             searchQuery={inputDisplayValue}
             onSearchQueryChange={(query) => {
               setIsFiltering(true);
@@ -2067,7 +2081,7 @@ export function LeadDetail({
               <InlineField
                 label="Property Name"
                 value={fieldValue(lead.name)}
-                emptyLabel="Enter Property Name"
+                emptyLabel="Add Property Name"
                 onCommit={(value) => updateLead({ name: value })}
               />
               <InlineField
@@ -2080,7 +2094,7 @@ export function LeadDetail({
               <InlineField
                 label="Address"
                 value={fieldValue(lead.address)}
-                emptyLabel="Enter Address"
+                emptyLabel="Add Address"
                 onCommit={(value) => updateLead({ address: value })}
               />
               {propertyFactsExpanded ? (
@@ -2103,7 +2117,7 @@ export function LeadDetail({
                 <InlineField
                   label="County"
                   value={fieldValue(lead.county)}
-                  emptyLabel="Enter County"
+                  emptyLabel="Add County"
                   onCommit={(value) => updateLead({ county: value })}
                 />
                 <InlineField
@@ -2123,37 +2137,37 @@ export function LeadDetail({
                 <InlineField
                   label="Zipcode"
                   value={fieldValue(lead.zipcode)}
-                  emptyLabel="Enter Zipcode"
+                  emptyLabel="Add Zipcode"
                   onCommit={(value) => updateLead({ zipcode: value })}
                 />
                 <InlineField
                   label="Land Area"
                   value={fieldValue(lead.landArea)}
-                  emptyLabel="Enter Land Area"
+                  emptyLabel="Add Land Area"
                   onCommit={(value) => updateLead({ landArea: value })}
                 />
                 <InlineField
                   label="Amenities"
                   value={fieldValue(lead.amenities)}
-                  emptyLabel="Enter Amenities (e.g Pool, Gym, Parking)"
+                  emptyLabel="Add Amenities (e.g Pool, Gym, Parking)"
                   onCommit={(value) => updateLead({ amenities: value })}
                 />
                 <InlineField
                   label="Parking Spaces"
                   value={fieldValue(lead.parkingSpaces)}
-                  emptyLabel="Enter No. of Parking Spaces"
+                  emptyLabel="Add No. of Parking Spaces"
                   onCommit={(value) => updateLead({ parkingSpaces: value })}
                 />
                 <InlineField
                   label="Loading Docks"
                   value={fieldValue(lead.loadingDocks)}
-                  emptyLabel="Enter Number of Loading Docks"
+                  emptyLabel="Add Number of Loading Docks"
                   onCommit={(value) => updateLead({ loadingDocks: value })}
                 />
                 <InlineField
                   label="RBA"
                   value={fieldValue(lead.rba)}
-                  emptyLabel="Enter RBA"
+                  emptyLabel="Add RBA"
                   onCommit={(value) => updateLead({ rba: value })}
                 />
                 <InlineField
@@ -2450,7 +2464,7 @@ export function LeadDetail({
                                     hideLabel
                                     label="Email"
                                     value={contact.email}
-                                    emptyLabel="Enter Email"
+                                    emptyLabel="Add Email"
                                     invalid={activeError?.anchor === `contact-email-${contact.id}`}
                                     anchorId={`contact-email-${contact.id}`}
                                     onCommit={(value) => updateContact(contact.id, { email: value })}
@@ -2495,7 +2509,7 @@ export function LeadDetail({
                               <InlineField
                                 label="Title"
                                 value={contact.title}
-                                emptyLabel="Enter Title"
+                                emptyLabel="Add Title"
                                 onCommit={(value) => updateContact(contact.id, { title: value })}
                               />
                             </div>
@@ -2503,14 +2517,14 @@ export function LeadDetail({
                               <InlineField
                                 label="Phone Number"
                                 value={contact.phone}
-                                emptyLabel="Enter Phone Number"
+                                emptyLabel="Add Phone Number"
                                 prefix={phoneFlagPrefix(contact.phone, contact.country || lead.country)}
                                 onCommit={(value) => updateContact(contact.id, { phone: value })}
                               />
                               <InlineField
                                 label="Cell Number"
                                 value={contact.cell}
-                                emptyLabel="Enter Cell Number"
+                                emptyLabel="Add Cell Number"
                                 prefix={phoneFlagPrefix(contact.cell, contact.country || lead.country)}
                                 onCommit={(value) => updateContact(contact.id, { cell: value })}
                               />
@@ -2519,7 +2533,7 @@ export function LeadDetail({
                               <InlineField
                                 label="Address"
                                 value={contact.address}
-                                emptyLabel="Enter Address"
+                                emptyLabel="Add Address"
                                 onCommit={(value) => updateContact(contact.id, { address: value })}
                               />
                               <InlineField
@@ -2551,7 +2565,7 @@ export function LeadDetail({
                               <InlineField
                                 label="Zip / Postal Code"
                                 value={contact.zipcode}
-                                emptyLabel="Enter Zip / Postal Code"
+                                emptyLabel="Add Zip / Postal Code"
                                 onCommit={(value) => updateContact(contact.id, { zipcode: value })}
                               />
                             </div>
@@ -2714,7 +2728,7 @@ export function LeadDetail({
                   <TextField
                     label="Parent Company"
                     value={newCompany.parentCompany ?? ""}
-                    placeholder="Enter Parent Company"
+                    placeholder="Add Parent Company"
                     onChange={(value) => setNewCompany((current) => ({ ...current, parentCompany: value }))}
                   />
                 </div>
@@ -2866,7 +2880,7 @@ export function LeadDetail({
                   <SearchableSelect
                     value={parentDraft.address}
                     options={addressChoices(leads).map((option) => option.address)}
-                    placeholder="Enter Property Address"
+                    placeholder="Add Property Address"
                     ariaLabel="Property Address"
                     onChange={applyParentAddress}
                   />
@@ -2875,7 +2889,7 @@ export function LeadDetail({
                   <span>Property Name</span>
                   <input
                     value={parentDraft.name}
-                    placeholder="Enter Property Name"
+                    placeholder="Add Property Name"
                     onChange={(event) => setParentDraft((current) => ({ ...current, name: event.target.value }))}
                   />
                 </label>
@@ -2906,7 +2920,7 @@ export function LeadDetail({
               </label>
               <label>
                 <span>County <span className="req">*</span></span>
-                <input value={parentDraft.county} placeholder="Enter County" required disabled readOnly />
+                <input value={parentDraft.county} placeholder="Add County" required disabled readOnly />
               </label>
               <label>
                 <span>State <span className="req">*</span></span>
@@ -2928,7 +2942,7 @@ export function LeadDetail({
               </label>
               <label>
                 <span>Zip/Postal Code <span className="req">*</span></span>
-                <input value={parentDraft.zipcode} placeholder="Enter Zip/Postal Code" required disabled readOnly />
+                <input value={parentDraft.zipcode} placeholder="Add Zip/Postal Code" required disabled readOnly />
               </label>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ownerAffiliationOptions } from "./data";
+import { RequiredFieldMark } from "./LeadDetail";
 import { filterOptionsBySearch } from "./SearchableSelect";
 
 function parseOwnerAffiliations(value: string) {
@@ -46,9 +47,26 @@ function OwnerAffiliationOverflowHint({ labels }: { labels: string[] }) {
   );
 }
 
-function OwnerAffiliationSummary({ selected, emptyLabel }: { selected: string[]; emptyLabel: string }) {
+function OwnerAffiliationSummary({
+  selected,
+  emptyLabel,
+  variant = "chips",
+}: {
+  selected: string[];
+  emptyLabel: string;
+  variant?: "chips" | "inline";
+}) {
   if (selected.length === 0) {
     return <span className="inline-field-text">{emptyLabel}</span>;
+  }
+
+  if (variant === "inline") {
+    const summary = selected.join(", ");
+    return (
+      <span className="inline-field-text owner-affiliation-inline-summary" title={summary}>
+        {summary}
+      </span>
+    );
   }
 
   const visibleSelected = selected.slice(0, 2);
@@ -72,12 +90,16 @@ export function ContactOwnerAffiliationChips({
   label = "Owner Affiliation",
   options = ownerAffiliationOptions,
   emptyLabel = "Select Owner Affiliation",
+  required,
+  summaryVariant = "chips",
 }: {
   value: string;
   onChange: (next: string) => void;
   label?: string;
   options?: string[];
   emptyLabel?: string;
+  required?: boolean;
+  summaryVariant?: "chips" | "inline";
 }) {
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -104,8 +126,7 @@ export function ContactOwnerAffiliationChips({
 
   function openEditor() {
     setDraft(value);
-    const initial = parseOwnerAffiliations(value).join(", ");
-    setSearchQuery(initial);
+    setSearchQuery("");
     setEditing(true);
     setMenuOpen(true);
   }
@@ -124,7 +145,15 @@ export function ContactOwnerAffiliationChips({
     const nextSet = new Set(menuSelectedSet);
     if (nextSet.has(option)) nextSet.delete(option);
     else nextSet.add(option);
-    setDraft(serializeOwnerAffiliations(optionsList.filter((item) => nextSet.has(item))));
+    const next = serializeOwnerAffiliations(optionsList.filter((item) => nextSet.has(item)));
+    setDraft(next);
+    onChange(next);
+    setMenuOpen(true);
+    requestAnimationFrame(() => {
+      const input = searchInputRef.current;
+      if (!input) return;
+      input.focus({ preventScroll: true });
+    });
   }
 
   useEffect(() => {
@@ -134,29 +163,35 @@ export function ContactOwnerAffiliationChips({
     }
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
-  });
+  }, [editing]);
 
   const valueClass = isEmpty ? "inline-field-value is-placeholder" : "inline-field-value";
 
   return (
     <div
       ref={rootRef}
-      className={
+      className={[
         editing
           ? "kv-row inline-field contact-owner-affiliation-field is-editing"
-          : "kv-row inline-field contact-owner-affiliation-field"
-      }
+          : "kv-row inline-field contact-owner-affiliation-field",
+        required ? "is-required" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      <span className="kv-label">{label}</span>
+      <span className="kv-label">
+        <span className="kv-label-text">{label}</span>
+        {required ? <RequiredFieldMark /> : null}
+      </span>
       <div className="kv-value">
         {editing ? (
-          <div className="inline-field-editor">
+          <div className="inline-field-editor owner-affiliation-field-editor">
             <input
               ref={searchInputRef}
               className="inline-field-input owner-affiliation-search"
               type="text"
               value={searchQuery}
-              placeholder={emptyLabel}
+              placeholder={menuSelected.length > 0 ? "Search affiliations" : emptyLabel}
               aria-label={label}
               onChange={(event) => {
                 setSearchQuery(event.target.value);
@@ -168,29 +203,36 @@ export function ContactOwnerAffiliationChips({
             />
             {menuOpen ? (
               <ul className="inline-menu owner-affiliation-menu" role="listbox" aria-multiselectable="true">
-                {filteredOptionsList.map((option) => {
-                  const isSelected = menuSelectedSet.has(option);
-                  return (
-                    <li key={option}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={isSelected}
-                        className={isSelected ? "is-selected" : undefined}
-                        onClick={() => toggle(option)}
-                      >
-                        <span className="inline-checkbox" aria-hidden="true" />
-                        {option}
-                      </button>
-                    </li>
-                  );
-                })}
+                {filteredOptionsList.length === 0 ? (
+                  <li className="inline-menu-empty" role="presentation">
+                    No matching affiliations
+                  </li>
+                ) : (
+                  filteredOptionsList.map((option) => {
+                    const isSelected = menuSelectedSet.has(option);
+                    return (
+                      <li key={option}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          className={isSelected ? "is-selected" : undefined}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => toggle(option)}
+                        >
+                          <span className="inline-checkbox" aria-hidden="true" />
+                          <span className="owner-affiliation-menu-label">{option}</span>
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
               </ul>
             ) : null}
           </div>
         ) : (
           <button type="button" className={`${valueClass} contact-owner-affiliation-value`} onClick={openEditor}>
-            <OwnerAffiliationSummary selected={selected} emptyLabel={emptyLabel} />
+            <OwnerAffiliationSummary selected={selected} emptyLabel={emptyLabel} variant={summaryVariant} />
           </button>
         )}
       </div>
