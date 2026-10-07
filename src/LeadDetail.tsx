@@ -51,7 +51,12 @@ const companyFields: {
   kind?: "phone" | "date";
 }[] = [
   { key: "name", label: "Company Name", placeholder: "Add Company Name" },
-  { key: "secondaryVertical", label: "Secondary Vertical", placeholder: "Add Secondary Vertical" },
+  {
+    key: "secondaryVertical",
+    label: "Secondary Vertical",
+    placeholder: "Select Secondary Vertical",
+    options: primaryVerticalOptions,
+  },
   { key: "phone", label: "Phone Number", placeholder: "+1 800 567 8905", kind: "phone" },
   { key: "employees", label: "No. of Employees", placeholder: "Add No. of Employees" },
   { key: "naics", label: "NAICS", placeholder: "Add NAICS" },
@@ -1102,6 +1107,7 @@ export function InlineField({
   tone,
   inputType = "text",
   labelHint,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -1117,6 +1123,7 @@ export function InlineField({
   tone?: "parent";
   inputType?: "text" | "date";
   labelHint?: string;
+  disabled?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [selectOpen, setSelectOpen] = useState(false);
@@ -1160,6 +1167,7 @@ export function InlineField({
           required ? "is-required" : "",
           hideLabel ? "is-label-hidden" : "",
           tone === "parent" ? "is-parent" : "",
+          disabled ? "is-disabled" : "",
         ]
           .filter(Boolean)
           .join(" ")
@@ -1175,19 +1183,26 @@ export function InlineField({
       <div className="kv-value">
       {hideLabel && required && isEmpty ? <RequiredFieldMark /> : null}
       {hasChoices ? (
-        <div className={`inline-field-editor${prefix ? " inline-field-editor-with-prefix" : ""}`}>
-          {prefix}
-          <SearchableSelect
-            noneOption
-            value={value}
-            options={options ?? []}
-            placeholder={emptyLabel ?? "Select"}
-            ariaLabel={label}
-            listboxId={`${anchorId ?? label.replace(/\s+/g, "-").toLowerCase()}-listbox`}
-            onOpenChange={setSelectOpen}
-            onChange={onCommit}
-          />
-        </div>
+        disabled ? (
+          <span className={`inline-field-static${isEmpty ? " is-placeholder" : ""}`}>
+            {prefix}
+            <span className="inline-field-text">{display}</span>
+          </span>
+        ) : (
+          <div className={`inline-field-editor${prefix ? " inline-field-editor-with-prefix" : ""}`}>
+            {prefix}
+            <SearchableSelect
+              noneOption
+              value={value}
+              options={options ?? []}
+              placeholder={emptyLabel ?? "Select"}
+              ariaLabel={label}
+              listboxId={`${anchorId ?? label.replace(/\s+/g, "-").toLowerCase()}-listbox`}
+              onOpenChange={setSelectOpen}
+              onChange={onCommit}
+            />
+          </div>
+        )
       ) : editing ? (
         <input
           className="inline-field-input"
@@ -1209,6 +1224,11 @@ export function InlineField({
             }
           }}
         />
+      ) : disabled ? (
+        <span className={`inline-field-static${isEmpty ? " is-placeholder" : ""}`}>
+          {prefix}
+          <span className="inline-field-text">{display}</span>
+        </span>
       ) : (
         <button type="button" className={valueClass} onClick={() => {
           const nextDraft = inputType === "date" ? (value.trim() ? formatAppDate(value) : "") : value;
@@ -1285,18 +1305,26 @@ function CompanySearch({ value, onChange }: { value: string; onChange: (value: s
   );
 }
 
-function ParentCompanyField({
+export function ParentCompanyField({
   value,
   options,
   suffix,
   onSelect,
   onCreateNew,
+  label = "Parent Company",
+  placeholder = "Add Parent Company",
+  required,
+  showCreateNew = true,
 }: {
   value: string;
   options: { id: string; name: string }[];
   suffix?: ReactNode;
   onSelect: (name: string) => void;
   onCreateNew: () => void;
+  label?: string;
+  placeholder?: string;
+  required?: boolean;
+  showCreateNew?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1387,14 +1415,20 @@ function ParentCompanyField({
   }, [open, searchQuery]);
 
   return (
-    <div ref={rootRef} className={`kv-row inline-field is-parent${open ? " is-editing" : ""}`}>
-      <span className="kv-label">Parent Company</span>
+    <div
+      ref={rootRef}
+      className={`kv-row inline-field is-parent${open ? " is-editing" : ""}${required ? " is-required" : ""}`}
+    >
+      <span className="kv-label">
+        <span className="kv-label-text">{label}</span>
+        {required ? <RequiredFieldMark /> : null}
+      </span>
       <div className="kv-value">
         <div className="inline-field-editor parent-company-value">
           <SearchableSelectControl
             open={open}
             value={value}
-            placeholder="Add Parent Company"
+            placeholder={placeholder}
             searchQuery={inputDisplayValue}
             onSearchQueryChange={(query) => {
               setIsFiltering(true);
@@ -1404,7 +1438,7 @@ function ParentCompanyField({
             onClose={closeMenu}
             onClear={clearSelection}
             inputRef={inputRef}
-            ariaLabel="Parent Company"
+            ariaLabel={label}
             tone="link"
           />
           {!open && suffix}
@@ -1438,20 +1472,22 @@ function ParentCompanyField({
                   })
                 )}
               </ul>
-              <button
-                type="button"
-                className="parent-company-create"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  closeMenu();
-                  onCreateNew();
-                }}
-              >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 3.25v9.5M3.25 8h9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-                Create new
-              </button>
+              {showCreateNew ? (
+                <button
+                  type="button"
+                  className="parent-company-create"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    closeMenu();
+                    onCreateNew();
+                  }}
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M8 3.25v9.5M3.25 8h9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                  Create new
+                </button>
+              ) : null}
             </div>,
             document.body,
           )}
@@ -2079,6 +2115,12 @@ export function LeadDetail({
           <div className="property-facts">
             <div className="property-facts-fields">
               <InlineField
+                label="Property Address"
+                value={fieldValue(lead.address)}
+                emptyLabel="Add Property Address"
+                onCommit={(value) => updateLead({ address: value })}
+              />
+              <InlineField
                 label="Property Name"
                 value={fieldValue(lead.name)}
                 emptyLabel="Add Property Name"
@@ -2090,12 +2132,6 @@ export function LeadDetail({
                 emptyLabel="Select Primary Vertical"
                 options={withCurrentOption(lead.primaryVertical, primaryVerticalOptions)}
                 onCommit={(value) => updateLead({ primaryVertical: value })}
-              />
-              <InlineField
-                label="Address"
-                value={fieldValue(lead.address)}
-                emptyLabel="Add Address"
-                onCommit={(value) => updateLead({ address: value })}
               />
               {propertyFactsExpanded ? (
                 <>
@@ -2539,7 +2575,7 @@ export function LeadDetail({
                               <InlineField
                                 label="Country"
                                 value={countryLabel(contact.country)}
-                                emptyLabel="Country"
+                                emptyLabel="Select Country"
                                 options={propertyCountries}
                                 prefix={countryFlagPrefix(contact.country)}
                                 onCommit={(value) => updateContact(contact.id, { country: countryCode(value) })}
@@ -2549,14 +2585,14 @@ export function LeadDetail({
                               <InlineField
                                 label="State"
                                 value={fieldValue(contact.state)}
-                                emptyLabel="State"
+                                emptyLabel="Select State"
                                 options={withCurrentOption(contact.state, propertyStates)}
                                 onCommit={(value) => updateContact(contact.id, { state: value })}
                               />
                               <InlineField
                                 label="City"
                                 value={fieldValue(contact.city)}
-                                emptyLabel="City"
+                                emptyLabel="Select City"
                                 options={withCurrentOption(contact.city, propertyCities)}
                                 onCommit={(value) => updateContact(contact.id, { city: value })}
                               />

@@ -6,7 +6,7 @@ import {
   type Contact,
   type Lead,
 } from "./data";
-import { InlineField } from "./LeadDetail";
+import { InlineField, ParentCompanyField } from "./LeadDetail";
 import { ContactOwnerAffiliationChips } from "./OwnerAffiliationField";
 
 const propertyCountries = ["United States"];
@@ -33,6 +33,15 @@ const propertyCities = [
   "Toledo",
   "Naperville",
 ];
+
+const propertyBuildingStatuses = ["Existing", "Under Construction", "Planned"];
+
+function tenancyDisplayValue(tenancy: string) {
+  const value = tenancy.trim();
+  if (!value || value === "N/A") return "";
+  if (/-tenant$/i.test(value)) return value;
+  return `${value}-Tenant`;
+}
 
 function withCurrentOption(value: string, options: string[]) {
   if (!value || options.includes(value)) return options;
@@ -83,6 +92,15 @@ function contactDisplayName(contact: Contact) {
   return `${contact.firstName} ${contact.lastName}`.trim();
 }
 
+function createLeadParentCompanyOptions(leads: Lead[], current: string) {
+  const names = parentCompanyNames(leads);
+  const trimmed = current.trim();
+  if (trimmed && !names.some((name) => name.toLowerCase() === trimmed.toLowerCase())) {
+    return [{ id: trimmed, name: trimmed }, ...names.map((name) => ({ id: name, name }))];
+  }
+  return names.map((name) => ({ id: name, name }));
+}
+
 export type CreateLeadDraft = {
   name: string;
   primaryVertical: string;
@@ -92,6 +110,13 @@ export type CreateLeadDraft = {
   state: string;
   city: string;
   zipcode: string;
+  tenancy: string;
+  landArea: string;
+  amenities: string;
+  parkingSpaces: string;
+  loadingDocks: string;
+  rba: string;
+  buildingStatus: string;
 };
 
 export function CreateLeadPropertyFacts({
@@ -106,6 +131,10 @@ export function CreateLeadPropertyFacts({
   onApplyAddress: (address: string) => void;
 }) {
   const addressOptions = addressChoices(leads).map((option) => option.address);
+  const locationFromAddress = Boolean(
+    draft.address.trim() &&
+      addressChoices(leads).some((item) => item.address === draft.address),
+  );
 
   return (
     <header className="property-banner create-lead-property-banner">
@@ -134,44 +163,93 @@ export function CreateLeadPropertyFacts({
           onCommit={(primaryVertical) => onPatch({ primaryVertical })}
         />
         <InlineField
-          required
-          label="Country"
-          value={countryLabel(draft.country)}
-          emptyLabel="Select Country"
-          options={propertyCountries}
-          prefix={countryFlagPrefix(draft.country)}
-          onCommit={(value) => onPatch({ country: countryCode(value) })}
-        />
-        <InlineField
-          required
-          label="County"
-          value={draft.county}
-          emptyLabel="Add County"
-          onCommit={(county) => onPatch({ county })}
-        />
-        <InlineField
-          required
-          label="State"
-          value={fieldValue(draft.state)}
-          emptyLabel="Select State"
-          options={withCurrentOption(draft.state, propertyStates)}
-          onCommit={(state) => onPatch({ state })}
-        />
-        <InlineField
-          required
-          label="City"
-          value={fieldValue(draft.city)}
-          emptyLabel="Select City"
-          options={withCurrentOption(draft.city, propertyCities)}
-          onCommit={(city) => onPatch({ city })}
-        />
-        <InlineField
-          required
-          label="Zip/Postal Code"
-          value={draft.zipcode}
-          emptyLabel="Add Zip/Postal Code"
-          onCommit={(zipcode) => onPatch({ zipcode })}
-        />
+              label="Tenancy"
+              value={tenancyDisplayValue(draft.tenancy)}
+              emptyLabel="Select Tenancy"
+              options={["Single-Tenant", "Multi-Tenant"]}
+              onCommit={(value) => onPatch({ tenancy: value.replace(/-Tenant$/i, "") })}
+            />
+            <InlineField
+              required
+              disabled={locationFromAddress}
+              label="Country"
+              value={countryLabel(draft.country)}
+              emptyLabel="Select Country"
+              options={propertyCountries}
+              prefix={countryFlagPrefix(draft.country)}
+              onCommit={(value) => onPatch({ country: countryCode(value) })}
+            />
+            <InlineField
+              required
+              disabled={locationFromAddress}
+              label="County"
+              value={draft.county}
+              emptyLabel="Add County"
+              onCommit={(county) => onPatch({ county })}
+            />
+            <InlineField
+              required
+              disabled={locationFromAddress}
+              label="State"
+              value={fieldValue(draft.state)}
+              emptyLabel="Select State"
+              options={withCurrentOption(draft.state, propertyStates)}
+              onCommit={(state) => onPatch({ state })}
+            />
+            <InlineField
+              required
+              disabled={locationFromAddress}
+              label="City"
+              value={fieldValue(draft.city)}
+              emptyLabel="Select City"
+              options={withCurrentOption(draft.city, propertyCities)}
+              onCommit={(city) => onPatch({ city })}
+            />
+            <InlineField
+              required
+              disabled={locationFromAddress}
+              label="Zipcode"
+              value={draft.zipcode}
+              emptyLabel="Add Zipcode"
+              onCommit={(zipcode) => onPatch({ zipcode })}
+            />
+            <InlineField
+              label="Land Area"
+              value={fieldValue(draft.landArea)}
+              emptyLabel="Add Land Area"
+              onCommit={(landArea) => onPatch({ landArea })}
+            />
+            <InlineField
+              label="Amenities"
+              value={fieldValue(draft.amenities)}
+              emptyLabel="Add Amenities (e.g Pool, Gym, Parking)"
+              onCommit={(amenities) => onPatch({ amenities })}
+            />
+            <InlineField
+              label="Parking Spaces"
+              value={fieldValue(draft.parkingSpaces)}
+              emptyLabel="Add no. of Parking Spaces"
+              onCommit={(parkingSpaces) => onPatch({ parkingSpaces })}
+            />
+            <InlineField
+              label="Loading Docks"
+              value={fieldValue(draft.loadingDocks)}
+              emptyLabel="Add No. of Loading Docks"
+              onCommit={(loadingDocks) => onPatch({ loadingDocks })}
+            />
+            <InlineField
+              label="RBA"
+              value={fieldValue(draft.rba)}
+              emptyLabel="Add RBA"
+              onCommit={(rba) => onPatch({ rba })}
+            />
+            <InlineField
+              label="Building Status"
+              value={fieldValue(draft.buildingStatus)}
+              emptyLabel="Select Building Status"
+              options={withCurrentOption(draft.buildingStatus, propertyBuildingStatuses)}
+              onCommit={(buildingStatus) => onPatch({ buildingStatus })}
+            />
         </div>
       </div>
     </header>
@@ -181,8 +259,15 @@ export function CreateLeadPropertyFacts({
 export type CreateLeadCompanyDraft = {
   id: string;
   companyName: string;
+  secondaryVertical: string;
   parentCompany: string;
   propertyAffiliation: string;
+  phone: string;
+  employees: string;
+  naics: string;
+  revenue: string;
+  website: string;
+  emailDomain: string;
   contacts: Contact[];
 };
 
@@ -216,12 +301,20 @@ export function CreateLeadCompanyDetailSections({
             onCommit={(companyName) => onUpdateCompany({ companyName })}
           />
           <InlineField
+            label="Secondary Vertical"
+            value={fieldValue(company.secondaryVertical)}
+            emptyLabel="Select Secondary Vertical"
+            options={withCurrentOption(company.secondaryVertical, primaryVerticalOptions)}
+            onCommit={(secondaryVertical) => onUpdateCompany({ secondaryVertical })}
+          />
+          <ParentCompanyField
             required
-            label="Parent Company"
             value={company.parentCompany}
-            emptyLabel="Select Parent Company"
-            options={withCurrentOption(company.parentCompany, parentCompanyNames(leads))}
-            onCommit={(parentCompany) => onUpdateCompany({ parentCompany })}
+            placeholder="Select Parent Company"
+            options={createLeadParentCompanyOptions(leads, company.parentCompany)}
+            onSelect={(parentCompany) => onUpdateCompany({ parentCompany })}
+            onCreateNew={() => {}}
+            showCreateNew={false}
           />
           <ContactOwnerAffiliationChips
             required
@@ -232,6 +325,43 @@ export function CreateLeadCompanyDetailSections({
             value={company.propertyAffiliation}
             onChange={(propertyAffiliation) => onUpdateCompany({ propertyAffiliation })}
           />
+          <InlineField
+            label="Phone Number"
+            value={company.phone}
+            emptyLabel="+1 800 567 8905"
+            prefix={phoneFlagPrefix(company.phone, propertyCountry)}
+            onCommit={(phone) => onUpdateCompany({ phone })}
+          />
+          <InlineField
+            label="No. of Employees"
+            value={fieldValue(company.employees)}
+            emptyLabel="Add No. of Employees"
+            onCommit={(employees) => onUpdateCompany({ employees })}
+          />
+          <InlineField
+            label="NAICS"
+            value={fieldValue(company.naics)}
+            emptyLabel="Add NAICS"
+            onCommit={(naics) => onUpdateCompany({ naics })}
+          />
+          <InlineField
+            label="Revenue"
+            value={fieldValue(company.revenue)}
+            emptyLabel="Add Revenue"
+            onCommit={(revenue) => onUpdateCompany({ revenue })}
+          />
+          <InlineField
+            label="Website URL"
+            value={fieldValue(company.website)}
+            emptyLabel="Add Website URL"
+            onCommit={(website) => onUpdateCompany({ website })}
+          />
+          <InlineField
+            label="Email Domain"
+            value={fieldValue(company.emailDomain)}
+            emptyLabel="Add Email Domain"
+            onCommit={(emailDomain) => onUpdateCompany({ emailDomain })}
+          />
         </div>
       </section>
 
@@ -239,9 +369,6 @@ export function CreateLeadCompanyDetailSections({
         <h3 id="create-lead-contacts-title" className="company-detail-section-title">
           Contacts ({company.contacts.length})
         </h3>
-        {company.contacts.length === 0 && (
-          <p className="panel-empty">No contacts for this company yet.</p>
-        )}
         <div className="contact-grid">
           {company.contacts.map((contact) => (
             <article key={contact.id} className="contact-card">
@@ -308,6 +435,7 @@ export function CreateLeadCompanyDetailSections({
               <div className="contact-card-row contact-card-row-2">
                 <ContactOwnerAffiliationChips
                   required
+                  summaryVariant="inline"
                   value={contact.ownerAffiliation}
                   onChange={(ownerAffiliation) => onUpdateContact(contact.id, { ownerAffiliation })}
                 />
@@ -349,7 +477,7 @@ export function CreateLeadCompanyDetailSections({
                   required
                   label="Country"
                   value={countryLabel(contact.country)}
-                  emptyLabel="Country"
+                  emptyLabel="Select Country"
                   options={propertyCountries}
                   prefix={countryFlagPrefix(contact.country)}
                   onCommit={(value) => onUpdateContact(contact.id, { country: countryCode(value) })}
@@ -360,7 +488,7 @@ export function CreateLeadCompanyDetailSections({
                   required
                   label="State"
                   value={fieldValue(contact.state)}
-                  emptyLabel="State"
+                  emptyLabel="Select State"
                   options={withCurrentOption(contact.state, propertyStates)}
                   onCommit={(state) => onUpdateContact(contact.id, { state })}
                 />
@@ -368,7 +496,7 @@ export function CreateLeadCompanyDetailSections({
                   required
                   label="City"
                   value={fieldValue(contact.city)}
-                  emptyLabel="City"
+                  emptyLabel="Select City"
                   options={withCurrentOption(contact.city, propertyCities)}
                   onCommit={(city) => onUpdateContact(contact.id, { city })}
                 />

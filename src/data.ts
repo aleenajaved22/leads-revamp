@@ -274,7 +274,7 @@ const leadRecords: Omit<Lead, "companies">[] = [
   },
   {
     id: "2",
-    name: "Wellness Center 2",
+    name: "N/A",
     address: "6391 Elgin St. Celina, Delaware 10299",
     state: "CL",
     status: "Raw",

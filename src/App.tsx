@@ -19,6 +19,7 @@ import {
 import {
   CreateLeadCompanyDetailSections,
   CreateLeadPropertyFacts,
+  type CreateLeadCompanyDraft,
 } from "./CreateLeadInlineSections";
 import { LeadDetail } from "./LeadDetail";
 
@@ -43,41 +44,30 @@ function CreateLeadToolbarAffiliations({ value }: { value: string }) {
   if (affiliations.length === 0) {
     return <span className="create-lead-meta-muted">No affiliation</span>;
   }
-  const visible = affiliations.slice(0, 2);
-  const overflow = affiliations.slice(2);
   return (
-    <span
-      className="create-lead-affiliation-pills create-lead-affiliation-pills--toolbar"
-      title={affiliations.join(", ")}
-    >
-      {visible.map((affiliation) => (
+    <span className="create-lead-affiliation-pills create-lead-affiliation-pills--toolbar">
+      {affiliations.map((affiliation) => (
         <span key={affiliation} className={propertyAffiliationPillClass(affiliation)}>
           {affiliation}
         </span>
       ))}
-      {overflow.length > 0 ? (
-        <span className="create-lead-affiliation-pill create-lead-affiliation-pill-overflow">
-          +{overflow.length}
-        </span>
-      ) : null}
     </span>
   );
 }
-
-type CreateLeadCompanyDraft = {
-  id: string;
-  companyName: string;
-  parentCompany: string;
-  propertyAffiliation: string;
-  contacts: Contact[];
-};
 
 function emptyCreateCompanyDraft(): CreateLeadCompanyDraft {
   return {
     id: `draft-co-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     companyName: "",
+    secondaryVertical: "",
     parentCompany: "",
     propertyAffiliation: "",
+    phone: "",
+    employees: "",
+    naics: "",
+    revenue: "",
+    website: "",
+    emailDomain: "",
     contacts: [],
   };
 }
@@ -92,6 +82,13 @@ function emptyCreateDraft() {
     state: "",
     city: "",
     zipcode: "",
+    tenancy: "",
+    landArea: "",
+    amenities: "",
+    parkingSpaces: "",
+    loadingDocks: "",
+    rba: "",
+    buildingStatus: "",
     status: "Raw" as Status,
     companies: [emptyCreateCompanyDraft()],
   };
@@ -652,7 +649,7 @@ export default function App() {
       country: "US",
       county: draft.county.trim(),
       state: draft.state,
-      buildingStatus: "Existing",
+      buildingStatus: draft.buildingStatus.trim() || "Existing",
       assignee: null,
       processed: "N/A",
       primaryVertical: draft.primaryVertical,
@@ -662,19 +659,26 @@ export default function App() {
       modifiedBy: "N/A",
       source: "Manual",
       dataType: "Csv",
-      tenancy: "N/A",
-      landArea: "N/A",
-      amenities: "N/A",
-      rba: "N/A",
-      loadingDocks: "N/A",
-      parkingSpaces: "N/A",
+      tenancy: draft.tenancy.trim() || "N/A",
+      landArea: draft.landArea.trim() || "N/A",
+      amenities: draft.amenities.trim() || "N/A",
+      rba: draft.rba.trim() || "N/A",
+      loadingDocks: draft.loadingDocks.trim() || "N/A",
+      parkingSpaces: draft.parkingSpaces.trim() || "N/A",
       validation: "Validation In Process",
       companies: namedCompanies.map((company, index) => ({
         ...emptyCompany(),
         id: `c-${leadId}-${index}`,
         name: company.companyName.trim(),
+        secondaryVertical: company.secondaryVertical.trim(),
         parentCompany: company.parentCompany.trim() || undefined,
         propertyAffiliation: company.propertyAffiliation,
+        phone: company.phone.trim(),
+        employees: company.employees.trim(),
+        naics: company.naics.trim(),
+        revenue: company.revenue.trim(),
+        website: company.website.trim(),
+        emailDomain: company.emailDomain.trim(),
         contacts: company.contacts,
         status: "Cleaned" as Status,
       })),
@@ -817,10 +821,6 @@ export default function App() {
                   <h1>Create a Lead</h1>
                   <p className="modal-create-helper">
                     Create a new lead by filling the following form
-                  </p>
-                  <p className="create-lead-required-legend">
-                    <span className="kv-label-required">*</span>
-                    Required field
                   </p>
                 </div>
               </div>

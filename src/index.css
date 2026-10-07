@@ -1305,8 +1305,6 @@ input[type="checkbox"]:checked::after {
   background: #fff;
   align-items: flex-start;
   min-height: 103px;
-  max-height: 103px;
-  overflow: hidden;
 }
 
 .create-lead-company-toolbar .create-lead-company-remove {
@@ -1319,12 +1317,10 @@ input[type="checkbox"]:checked::after {
 }
 
 .create-lead-company-toolbar .company-detail-meta {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   min-width: 0;
-  max-height: 22px;
-  overflow: hidden;
-  white-space: nowrap;
+  row-gap: 6px;
 }
 
 .create-lead-affiliation-pills {
@@ -1337,15 +1333,8 @@ input[type="checkbox"]:checked::after {
 
 .create-lead-affiliation-pills--toolbar {
   flex: 1 1 auto;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   min-width: 0;
-  overflow: hidden;
-}
-
-.create-lead-affiliation-pill-overflow {
-  flex-shrink: 0;
-  background: #f5f5f6;
-  color: #6a6a70;
 }
 
 .modal-create-lead .company-detail-section .contact-owner-affiliation-field {
@@ -3377,6 +3366,15 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
 
 .inline-field-value:hover { background: #f1f2f4; }
 
+.inline-field.is-disabled .inline-field-static {
+  color: #6b7280;
+  cursor: default;
+}
+
+.inline-field-static.is-placeholder {
+  color: #9ca3af;
+}
+
 .inline-field-editor { position: relative; min-width: 0; }
 
 .inline-field-editor-with-prefix {
@@ -3523,6 +3521,8 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
   top: calc(100% + 4px);
   left: 0;
   right: 0;
+  max-height: min(280px, 50vh);
+  overflow-y: auto;
 }
 
 .modal-create .create-fields label,
@@ -4535,16 +4535,6 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
   gap: 2px;
 }
 
-.create-lead-required-legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  color: #6a6a70;
-  font-size: 12px;
-  font-weight: 500;
-}
-
 .kv-label-hint-trigger {
   display: inline-flex;
   flex: none;
@@ -4723,8 +4713,21 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
 
 .company-detail-section .inline-field.is-parent .parent-company-value .searchable-select.is-closed {
   flex: 0 1 auto;
-  width: auto;
-  max-width: calc(100% - 20px);
+  width: max-content;
+  max-width: 100%;
+}
+
+.company-detail-section .inline-field.is-parent .searchable-select-display-text {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.company-detail-section
+  .inline-field.is-parent
+  .searchable-select.is-link-tone.is-closed
+  .searchable-select-display-text:not(.is-placeholder) {
+  color: #262527;
 }
 
 .company-detail-section .inline-field.is-parent .parent-company-value .searchable-select.is-open {
@@ -4770,7 +4773,8 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  min-height: 0;
+  min-height: 373px;
+  height: 100%;
   padding: 0 24px;
   border: 0;
   border-radius: 0;
@@ -5180,8 +5184,12 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
   align-items: center;
   justify-content: center;
   gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
-  min-height: 200px;
+  height: 100%;
+  min-height: 373px;
+  align-self: stretch;
   padding: 24px 16px;
   border: 1px dashed #d0d5dd;
   border-radius: 10px;
