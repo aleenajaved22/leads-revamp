@@ -8,8 +8,38 @@ import {
   type Contact,
   type Lead,
 } from "./data";
+import { DATE_PLACEHOLDER } from "./dates";
 import { InlineField, ParentCompanyField } from "./LeadDetail";
 import { ContactOwnerAffiliationChips } from "./OwnerAffiliationField";
+
+const createLeadOccupancyFields = [
+  { key: "floor" as const, label: "Floor", placeholder: "Add Floor" },
+  { key: "suite" as const, label: "Suite / Unit / Apartment", placeholder: "Add Suite / Unit / Apartment" },
+  { key: "occupiedArea" as const, label: "Occupied Area (sq ft)", placeholder: "Add Occupied Area" },
+];
+
+const createLeadOccupancyDateFields = [
+  {
+    key: "effectiveDate" as const,
+    label: "Company at Property - Effective Date",
+    labelHint:
+      "The company's association with this property becomes active on the effective date you select",
+  },
+  {
+    key: "tillDate" as const,
+    label: "Company at Property - Till Date",
+    labelHint:
+      "The company's association with this property stays active through the end date you select and becomes inactive after it",
+  },
+];
+
+function createLeadOccupancyFloorValue(company: CreateLeadCompanyDraft) {
+  return company.floor.trim() || company.floorRange.trim();
+}
+
+function createLeadOccupancySuiteValue(company: CreateLeadCompanyDraft) {
+  return company.suite.trim() || company.suiteRange.trim();
+}
 
 const propertyCountries = ["United States"];
 const propertyStates = [
@@ -270,6 +300,13 @@ export type CreateLeadCompanyDraft = {
   revenue: string;
   website: string;
   emailDomain: string;
+  floor: string;
+  floorRange: string;
+  suite: string;
+  suiteRange: string;
+  occupiedArea: string;
+  effectiveDate: string;
+  tillDate: string;
   contacts: Contact[];
 };
 
@@ -320,15 +357,6 @@ export function CreateLeadCompanyDetailSections({
             onCreateNew={() => {}}
             showCreateNew={false}
           />
-          <ContactOwnerAffiliationChips
-            required
-            summaryVariant="inline"
-            label="Company Affiliation"
-            options={propertyAffiliationOptions}
-            emptyLabel="Select Company Affiliation"
-            value={company.propertyAffiliation}
-            onChange={(propertyAffiliation) => onUpdateCompany({ propertyAffiliation })}
-          />
           <InlineField
             label="Phone Number"
             value={company.phone}
@@ -365,6 +393,63 @@ export function CreateLeadCompanyDetailSections({
             value={fieldValue(company.emailDomain)}
             emptyLabel="Add Email Domain"
             onCommit={(emailDomain) => onUpdateCompany({ emailDomain })}
+          />
+        </div>
+      </section>
+
+      <section
+        className="company-detail-section"
+        data-section="occupancy"
+        aria-labelledby="create-lead-company-section-occupancy"
+      >
+        <h3 id="create-lead-company-section-occupancy" className="company-detail-section-title">
+          Property Occupancy
+        </h3>
+        <div className="kv-table">
+          {createLeadOccupancyFields.map((field) => (
+            <InlineField
+              key={field.key}
+              label={field.label}
+              value={
+                field.key === "floor"
+                  ? createLeadOccupancyFloorValue(company)
+                  : field.key === "suite"
+                    ? createLeadOccupancySuiteValue(company)
+                    : fieldValue(company[field.key])
+              }
+              emptyLabel={field.placeholder}
+              onCommit={(value) => {
+                if (field.key === "floor") {
+                  onUpdateCompany({ floor: value, floorRange: value });
+                  return;
+                }
+                if (field.key === "suite") {
+                  onUpdateCompany({ suite: value, suiteRange: value });
+                  return;
+                }
+                onUpdateCompany({ [field.key]: value });
+              }}
+            />
+          ))}
+          {createLeadOccupancyDateFields.map((field) => (
+            <InlineField
+              key={field.key}
+              label={field.label}
+              labelHint={field.labelHint}
+              value={company[field.key]}
+              emptyLabel={DATE_PLACEHOLDER}
+              inputType="date"
+              onCommit={(value) => onUpdateCompany({ [field.key]: value })}
+            />
+          ))}
+          <ContactOwnerAffiliationChips
+            required
+            summaryVariant="inline"
+            label="Property Affiliation"
+            options={propertyAffiliationOptions}
+            emptyLabel="Select Property Affiliation"
+            value={company.propertyAffiliation}
+            onChange={(propertyAffiliation) => onUpdateCompany({ propertyAffiliation })}
           />
         </div>
       </section>
