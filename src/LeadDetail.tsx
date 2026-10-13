@@ -27,6 +27,8 @@ import { ContactOwnerAffiliationChips } from "./OwnerAffiliationField";
 import { Toast } from "./Toast";
 import {
   addressChoices,
+  companyActivityClass,
+  companyActivityStatus,
   companyStatusClass,
   contactPatchFromAddressChoice,
   isKnownAddressChoice,
@@ -1596,6 +1598,7 @@ export function LeadDetail({
   }, [selected, lead, companyBaselineVersion]);
   const companyHasEdits = companyEditCount > 0;
   const { floorText } = selected ? occupancyParts(selected) : { floorText: "" };
+  const selectedActivity = selected ? companyActivityStatus(selected) : "Active";
   const parentCompany = selected?.parentCompany?.trim() ?? "";
   const parentCompanyTarget = parentCompany ? resolveParentCompanyTarget(lead, leads, parentCompany) : null;
   const step = workflowIndex(lead.status);
@@ -2275,6 +2278,7 @@ export function LeadDetail({
               <ul className="company-list">
                 {visibleCompanies.map((company) => {
                   const { floorText } = occupancyParts(company);
+                  const activity = companyActivityStatus(company);
                   return (
                     <li key={company.id}>
                       <button
@@ -2283,11 +2287,24 @@ export function LeadDetail({
                         onClick={() => selectCompany(company.id)}
                       >
                         <div className="company-list-item-header">
-                          <h3 className="company-list-item-name">{company.name.trim() || "Company Name"}</h3>
+                          <span className="company-list-item-title-row">
+                            <h3 className="company-list-item-name">
+                              {company.name.trim() || "Company Name"}
+                            </h3>
+                            <span
+                              className={`company-list-item-activity-indicator${activity === "Active" ? " is-active" : " is-inactive"}`}
+                              title={activity}
+                              aria-label={activity}
+                            >
+                              <span className="company-list-item-activity-dot" aria-hidden="true" />
+                            </span>
+                          </span>
                         </div>
                         <span className="company-list-item-meta">
-                          {floorText ? <span>{floorText}</span> : <span>Floor info unavailable</span>}
-                          <span className="banner-dot" aria-hidden="true" />
+                          <span className="company-list-item-meta-lead">
+                            {floorText ? <span>{floorText}</span> : <span>Floor info unavailable</span>}
+                            <span className="meta-line-separator" aria-hidden="true" />
+                          </span>
                           <span className={`company-list-item-status ${companyStatusClass(company.status)}`}>
                             {company.status}
                           </span>
@@ -2317,13 +2334,20 @@ export function LeadDetail({
                   <div className="company-detail-title">
                     <h2>{selected.name.trim() || "Company Name"}</h2>
                     <p className="company-detail-meta">
-                      {floorText ? <span>{floorText}</span> : <span>Floor info unavailable</span>}
-                      <span className="banner-dot" aria-hidden="true" />
-                      <span className={`company-detail-status ${companyStatusClass(selected.status)}`}>
-                        {selected.status}
-                        {selected.status === "Attention Required" && (
-                          <img src="/assets/icon-error.svg" alt="" />
-                        )}
+                      <span className="company-detail-meta-lead">
+                        {floorText ? <span>{floorText}</span> : <span>Floor info unavailable</span>}
+                        <span className="meta-line-separator" aria-hidden="true" />
+                      </span>
+                      <span className="company-detail-meta-pills">
+                        <span className={`company-detail-status ${companyStatusClass(selected.status)}`}>
+                          {selected.status}
+                          {selected.status === "Attention Required" && (
+                            <img src="/assets/icon-error.svg" alt="" />
+                          )}
+                        </span>
+                        <span className={`company-detail-activity ${companyActivityClass(selectedActivity)}`}>
+                          {selectedActivity}
+                        </span>
                       </span>
                     </p>
                   </div>

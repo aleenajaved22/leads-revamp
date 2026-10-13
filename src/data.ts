@@ -1,3 +1,5 @@
+import { parseAppDate } from "./dates";
+
 export type Status =
   | "Enriched"
   | "Raw"
@@ -52,6 +54,22 @@ export type Company = {
 
 export function companyStatusClass(status: Status) {
   return `badge badge-${status.toLowerCase().replace(/\s+/g, "-")}`;
+}
+
+export type CompanyActivity = "Active" | "Inactive";
+
+export function companyActivityStatus(company: Company): CompanyActivity {
+  const till = company.tillDate.trim();
+  if (!till) return "Active";
+  const tillTime = parseAppDate(till);
+  if (!tillTime) return "Active";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return tillTime < today.getTime() ? "Inactive" : "Active";
+}
+
+export function companyActivityClass(activity: CompanyActivity) {
+  return activity === "Active" ? "badge badge-active" : "badge badge-inactive";
 }
 
 export type Lead = {
@@ -739,6 +757,8 @@ const companySeeds: Record<string, Company[]> = {
       floorRange: "1–2",
       suiteRange: "1–50",
       occupiedArea: "24,000 SF",
+      effectiveDate: "01/15/24",
+      tillDate: "12/31/27",
       status: "Cleaned",
       parentCompany: "Americold",
       contacts: [
@@ -764,12 +784,20 @@ const companySeeds: Record<string, Company[]> = {
       revenue: "$5.3B",
       website: "lineagelogistics.com",
       emailDomain: "lineagelogistics.com",
+      effectiveDate: "03/01/22",
+      tillDate: "06/30/25",
       status: "Cleaned",
       contacts: [
         contact("ct-1-b1", "Nina", "Patel", "Site Lead", "nina.patel@lineagelogistics.com", "+1 949 555 0177"),
       ],
     }),
-    tenant("c-1-c", "Cold Chain Partners", "Logistics", { floor: "1", suite: "140", occupiedArea: "4,500 SF", status: "Enriched" }),
+    tenant("c-1-c", "Cold Chain Partners", "Logistics", {
+      floor: "1",
+      suite: "140",
+      occupiedArea: "4,500 SF",
+      tillDate: "01/15/25",
+      status: "Enriched",
+    }),
     tenant("c-1-d", "Harbor Freight Advisors", "Consulting", { floor: "2", suite: "250", occupiedArea: "5,200 SF", status: "Cleaned" }),
     tenant("c-1-e", "Meridian Health", "Healthcare", { floor: "3", suite: "300", occupiedArea: "9,000 SF", status: "Enriched" }),
     tenant("c-1-f", "Summit Legal Group", "Legal", { floor: "3", suite: "340", occupiedArea: "6,000 SF", status: "Cleaned" }),
