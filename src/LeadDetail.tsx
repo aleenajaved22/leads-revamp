@@ -1507,6 +1507,25 @@ export function ParentCompanyField({
   );
 }
 
+function CompanyListActivityLegend() {
+  return (
+    <div className="company-list-activity-legend" role="note" aria-label="Company activity legend">
+      <span className="company-list-legend-item">
+        <span className="company-list-item-activity-indicator is-active" aria-hidden="true">
+          <span className="company-list-item-activity-dot" />
+        </span>
+        Active
+      </span>
+      <span className="company-list-legend-item">
+        <span className="company-list-item-activity-indicator is-inactive" aria-hidden="true">
+          <span className="company-list-item-activity-dot" />
+        </span>
+        Inactive
+      </span>
+    </div>
+  );
+}
+
 export function LeadDetail({
   lead,
   leads,
@@ -2315,6 +2334,7 @@ export function LeadDetail({
                 })}
               </ul>
             )}
+            {lead.companies.length > 0 ? <CompanyListActivityLegend /> : null}
           </aside>
 
           <main className="company-detail-pane">
