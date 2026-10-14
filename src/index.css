@@ -568,7 +568,7 @@ input[type="checkbox"]:checked::after {
 
 .badge-active { background: #e3f9ec; color: #039855; }
 
-.badge-pending { background: #fff4e5; color: #8c4d1d; padding-right: 6px; }
+.badge-pending { background: #ffeed6; color: #8c4d1d; padding-right: 6px; }
 
 .badge-inactive { background: #f5f5f6; color: #6a6a70; }
 .badge-approved { background: #eff8ef; color: #2e964b; }
@@ -4439,7 +4439,7 @@ tbody tr.is-open td.sticky-name { box-shadow: inset 3px 0 0 #146dff; }
 }
 
 .company-detail-activity.badge-pending {
-  background: #fff4e5;
+  background: #ffeed6;
   color: #8c4d1d;
 }
 
