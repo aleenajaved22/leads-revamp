@@ -30,6 +30,7 @@ import {
   companyActivityClass,
   companyActivityStatus,
   companyStatusClass,
+  sortCompaniesByActivity,
   contactPatchFromAddressChoice,
   isKnownAddressChoice,
   type AddressChoice,
@@ -1095,6 +1096,137 @@ function LabelInfoHint({ text }: { text: string }) {
   );
 }
 
+function InfoCircleIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M8 7.1V11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="8" cy="5.15" r="0.75" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CompanyDetailActivityBadge({
+  activity,
+  effectiveDate,
+}: {
+  activity: ReturnType<typeof companyActivityStatus>;
+  effectiveDate: string;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+
+  function updatePosition() {
+    const anchor = triggerRef.current;
+    const tooltip = tooltipRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const width = tooltip?.offsetWidth ?? 180;
+    const height = tooltip?.offsetHeight ?? 32;
+    const left = Math.min(Math.max(12, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - 12);
+    setPosition({ top: rect.top - height - 8, left });
+  }
+
+  function cancelClose() {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }
+
+  function scheduleClose() {
+    cancelClose();
+    closeTimerRef.current = window.setTimeout(() => setOpen(false), 120);
+  }
+
+  function show() {
+    cancelClose();
+    setOpen(true);
+    requestAnimationFrame(updatePosition);
+  }
+
+  useEffect(() => () => cancelClose(), []);
+
+  useEffect(() => {
+    if (open) requestAnimationFrame(updatePosition);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onLayout() {
+      updatePosition();
+    }
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (triggerRef.current?.contains(target) || tooltipRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("scroll", onLayout, true);
+    window.addEventListener("resize", onLayout);
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("scroll", onLayout, true);
+      window.removeEventListener("resize", onLayout);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  if (activity !== "Pending") {
+    return (
+      <span className={`company-detail-activity ${companyActivityClass(activity)}`}>{activity}</span>
+    );
+  }
+
+  const formattedEffectiveDate = formatAppDate(effectiveDate) || DATE_PLACEHOLDER;
+  const tooltipText = `Effective Date: ${formattedEffectiveDate}`;
+
+  const tooltip =
+    open &&
+    createPortal(
+      <div
+        ref={tooltipRef}
+        className="company-pending-effective-tooltip"
+        style={{ top: position.top, left: position.left }}
+        role="tooltip"
+        onMouseEnter={cancelClose}
+        onMouseLeave={scheduleClose}
+      >
+        {tooltipText}
+      </div>,
+      document.body,
+    );
+
+  return (
+    <>
+      <span className={`company-detail-activity ${companyActivityClass(activity)}`}>
+        Pending
+        <button
+          ref={triggerRef}
+          type="button"
+          className="badge-pending-info-trigger"
+          aria-label={tooltipText}
+          onMouseEnter={show}
+          onMouseLeave={scheduleClose}
+          onFocus={show}
+          onBlur={scheduleClose}
+        >
+          <InfoCircleIcon />
+        </button>
+      </span>
+      {tooltip}
+    </>
+  );
+}
+
 export function RequiredFieldMark() {
   return (
     <span className="kv-label-required" title="Required">
@@ -1517,6 +1649,12 @@ function CompanyListActivityLegend() {
         Active
       </span>
       <span className="company-list-legend-item">
+        <span className="company-list-item-activity-indicator is-pending" aria-hidden="true">
+          <span className="company-list-item-activity-dot" />
+        </span>
+        Pending
+      </span>
+      <span className="company-list-legend-item">
         <span className="company-list-item-activity-indicator is-inactive" aria-hidden="true">
           <span className="company-list-item-activity-dot" />
         </span>
@@ -1600,14 +1738,16 @@ export function LeadDetail({
   }, [propertyMenuOpen]);
 
   const normalizedCompanyQuery = companyQuery.trim().toLowerCase();
-  const visibleCompanies = normalizedCompanyQuery
-    ? lead.companies.filter((company) =>
-        [company.name, company.secondaryVertical, company.status, occupancyLabel(company)]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedCompanyQuery),
-      )
-    : lead.companies;
+  const visibleCompanies = sortCompaniesByActivity(
+    normalizedCompanyQuery
+      ? lead.companies.filter((company) =>
+          [company.name, company.secondaryVertical, company.status, occupancyLabel(company)]
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedCompanyQuery),
+        )
+      : lead.companies,
+  );
 
   const selected = lead.companies.find((company) => company.id === selectedId) ?? lead.companies[0];
   const companyEditCount = useMemo(() => {
@@ -2311,7 +2451,7 @@ export function LeadDetail({
                               {company.name.trim() || "Company Name"}
                             </h3>
                             <span
-                              className={`company-list-item-activity-indicator${activity === "Active" ? " is-active" : " is-inactive"}`}
+                              className={`company-list-item-activity-indicator is-${activity.toLowerCase()}`}
                               title={activity}
                               aria-label={activity}
                             >
@@ -2365,9 +2505,10 @@ export function LeadDetail({
                             <img src="/assets/icon-error.svg" alt="" />
                           )}
                         </span>
-                        <span className={`company-detail-activity ${companyActivityClass(selectedActivity)}`}>
-                          {selectedActivity}
-                        </span>
+                        <CompanyDetailActivityBadge
+                          activity={selectedActivity}
+                          effectiveDate={selected.effectiveDate}
+                        />
                       </span>
                     </p>
                   </div>

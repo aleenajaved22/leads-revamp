@@ -56,20 +56,48 @@ export function companyStatusClass(status: Status) {
   return `badge badge-${status.toLowerCase().replace(/\s+/g, "-")}`;
 }
 
-export type CompanyActivity = "Active" | "Inactive";
+export type CompanyActivity = "Active" | "Inactive" | "Pending";
 
 export function companyActivityStatus(company: Company): CompanyActivity {
-  const till = company.tillDate.trim();
-  if (!till) return "Active";
-  const tillTime = parseAppDate(till);
-  if (!tillTime) return "Active";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return tillTime < today.getTime() ? "Inactive" : "Active";
+  const todayTime = today.getTime();
+
+  const effective = company.effectiveDate.trim();
+  if (effective) {
+    const effectiveTime = parseAppDate(effective);
+    if (effectiveTime && effectiveTime > todayTime) return "Pending";
+  }
+
+  const till = company.tillDate.trim();
+  if (till) {
+    const tillTime = parseAppDate(till);
+    if (tillTime && tillTime < todayTime) return "Inactive";
+  }
+
+  return "Active";
 }
 
 export function companyActivityClass(activity: CompanyActivity) {
-  return activity === "Active" ? "badge badge-active" : "badge badge-inactive";
+  if (activity === "Active") return "badge badge-active";
+  if (activity === "Pending") return "badge badge-pending";
+  return "badge badge-inactive";
+}
+
+const companyActivitySortOrder: Record<CompanyActivity, number> = {
+  Active: 0,
+  Pending: 1,
+  Inactive: 2,
+};
+
+export function sortCompaniesByActivity(companies: Company[]) {
+  return [...companies].sort((a, b) => {
+    const activityOrder =
+      companyActivitySortOrder[companyActivityStatus(a)] -
+      companyActivitySortOrder[companyActivityStatus(b)];
+    if (activityOrder !== 0) return activityOrder;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
 }
 
 export type Lead = {
@@ -801,7 +829,13 @@ const companySeeds: Record<string, Company[]> = {
     tenant("c-1-d", "Harbor Freight Advisors", "Consulting", { floor: "2", suite: "250", occupiedArea: "5,200 SF", status: "Cleaned" }),
     tenant("c-1-e", "Meridian Health", "Healthcare", { floor: "3", suite: "300", occupiedArea: "9,000 SF", status: "Enriched" }),
     tenant("c-1-f", "Summit Legal Group", "Legal", { floor: "3", suite: "340", occupiedArea: "6,000 SF", status: "Cleaned" }),
-    tenant("c-1-g", "Brightline Tech", "Technology", { floor: "3", suite: "380", occupiedArea: "3,500 SF", status: "Enriched" }),
+    tenant("c-1-g", "Brightline Tech", "Technology", {
+      floor: "3",
+      suite: "380",
+      occupiedArea: "3,500 SF",
+      effectiveDate: "06/01/27",
+      status: "Enriched",
+    }),
     tenant("c-1-h", "Northstar Capital", "Finance", {
       floorRange: "5–6",
       suiteRange: "500–610",
